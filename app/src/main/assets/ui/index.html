@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>S1 Dash</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="stage">
+
+  <!-- Car menu -->
+  <section class="screen" id="menu">
+    <div class="hdr"><div class="title">Car</div><div class="status"><span class="dtc" data-go="faults"></span><span class="amb"></span><b class="clock"></b></div></div>
+    <div class="list">
+      <div class="row" data-go="perf">Performance<span class="chev" style="margin-left:auto">›</span></div>
+      <div class="row" data-go="awd">All-wheel drive<span class="val" id="m-mode"></span><span class="chev">›</span></div>
+      <div class="row" data-go="engine">Engine data<span class="chev" style="margin-left:auto">›</span></div>
+      <div class="row" data-go="faults">Fault memory<span class="val" id="m-dtc"></span><span class="chev">›</span></div>
+      <div class="row" data-go="logger">Data logger<span class="val" id="m-log"></span><span class="chev">›</span></div>
+      <div class="row" data-go="settings">Settings<span class="chev" style="margin-left:auto">›</span></div>
+      <div class="row" id="open-simos">Open SimosTools<span class="val">frees the dongle</span><span class="chev">↗</span></div>
+    </div>
+    <div class="sk bl" data-go="perf">Performance</div>
+  </section>
+
+  <!-- Performance: cluster-style dials -->
+  <section class="screen" id="perf">
+    <div class="hdr"><div class="title"><span>Car ›</span> Performance</div><div class="status"><span class="dtc" data-go="faults"></span><span class="amb"></span><b class="clock"></b></div></div>
+    <div class="cluster" id="cluster">
+      <div class="trim top"></div>
+      <div class="dial l" id="dialL"></div>
+      <div class="dis" data-go="awd">
+        <div class="mode" id="d-mode">--</div>
+        <div class="modesub" id="d-lock">lock -- %</div>
+        <svg width="62" height="74" viewBox="0 0 70 92">
+          <rect x="17" y="6" width="36" height="80" rx="12" fill="none" stroke="#f4f4f4" stroke-width="2"/>
+          <rect x="23" y="22" width="24" height="14" rx="3" fill="none" stroke="#9a9ea3" stroke-width="1.5"/>
+          <rect x="23" y="56" width="24" height="16" rx="3" fill="none" stroke="#9a9ea3" stroke-width="1.5"/>
+          <rect x="5" y="16" width="8" height="18" rx="2" fill="#f4f4f4"/>
+          <rect x="57" y="16" width="8" height="18" rx="2" fill="#f4f4f4"/>
+          <rect class="rear" x="5" y="58" width="8" height="18" rx="2" fill="#f4f4f4"/>
+          <rect class="rear" x="57" y="58" width="8" height="18" rx="2" fill="#f4f4f4"/>
+          <line x1="13" y1="25" x2="57" y2="25" stroke="#f4f4f4" stroke-width="2"/>
+          <line class="rear" x1="13" y1="67" x2="57" y2="67" stroke="#f4f4f4" stroke-width="2"/>
+        </svg>
+        <div class="ln"><span>Peak</span><b id="d-peak">--</b></div>
+        <div class="ln"><span>Atm</span><b id="d-atm">--</b></div>
+        <div class="ln"><span>Haldex</span><b id="d-hxv">--</b></div>
+        <div class="msg" id="d-msg"></div>
+      </div>
+      <div class="dial r" id="dialR"></div>
+      <div class="trim bot"></div>
+    </div>
+    <div class="stats" id="perf-stats"><div class="tiles" id="perf-tiles"></div></div>
+    <div class="sk bl" data-go="menu">Menu</div>
+    <div class="sk bm" data-go="awd">All-wheel drive</div>
+    <div class="sk br" data-go="engine">Engine data</div>
+  </section>
+
+  <!-- All-wheel drive -->
+  <section class="screen" id="awd">
+    <div class="hdr"><div class="title"><span>Car ›</span> All-wheel drive</div><div class="status"><span class="dtc" data-go="faults"></span><span class="amb"></span><b class="clock"></b></div></div>
+    <div class="list" id="modes" style="right:340px"></div>
+    <div class="panel">
+      <h4>Haldex</h4>
+      <div class="kv"><span>Lock</span><b id="a-lock">--</b></div>
+      <div class="bar"><i id="a-lockbar" style="width:0%"></i></div>
+      <div class="kv"><span>Target</span><b id="a-target">--</b></div>
+      <div class="kv"><span>Clutch temp</span><b id="a-clutch">--</b></div>
+      <div class="kv"><span>Module temp</span><b id="a-module">--</b></div>
+      <div class="kv"><span>Voltage</span><b id="a-volts">--</b></div>
+      <div class="kv"><span>Temp protection</span><b id="a-prot">--</b></div>
+      <div class="kv"><span>OpenHaldex</span><b id="a-oh">--</b></div>
+    </div>
+    <div class="sk bl" data-back>Back</div>
+    <div class="sk br" data-go="perf">Performance</div>
+  </section>
+
+  <!-- Engine data: the SimosTools set -->
+  <section class="screen" id="engine">
+    <div class="hdr"><div class="title"><span>Car ›</span> Engine data</div><div class="status"><span class="dtc" data-go="faults"></span><span class="amb"></span><b class="clock"></b></div></div>
+    <div class="grid"><div class="tiles" id="eng-tiles"></div></div>
+    <div class="sk bl" data-back>Back</div>
+    <div class="sk bm" id="eng-status"></div>
+    <div class="sk br" data-go="perf">Performance</div>
+  </section>
+
+  <!-- Fault memory -->
+  <section class="screen" id="faults">
+    <div class="hdr"><div class="title"><span>Car ›</span> Fault memory</div><div class="status"><span class="amb"></span><b class="clock"></b></div></div>
+    <div class="list" id="fault-list"></div>
+    <div class="sk bl" data-back>Back</div>
+    <div class="sk bm" id="f-read">Read</div>
+    <div class="sk br" id="f-clear">Clear…</div>
+  </section>
+
+  <!-- Data logger -->
+  <section class="screen logger" id="logger">
+    <div class="hdr"><div class="title"><span>Car ›</span> Data logger</div><div class="status"><span class="dtc" data-go="faults"></span><span class="amb"></span><b class="clock"></b></div></div>
+    <div class="rec" id="rec">
+      <div class="btn" id="rec-btn"><i></i></div>
+      <div class="time" id="rec-time">00:00</div>
+      <div class="note" id="rec-note">Tap to record · 10 Hz</div>
+    </div>
+    <div class="list" id="log-list"></div>
+    <div class="sk bl" data-back>Back</div>
+  </section>
+
+  <!-- Settings -->
+  <section class="screen" id="settings">
+    <div class="hdr"><div class="title"><span>Car ›</span> Settings</div><div class="status"><span class="amb"></span><b class="clock"></b></div></div>
+    <div class="list" id="set-list"></div>
+    <div class="sk bl" data-back>Back</div>
+    <div class="sk br" id="ver"></div>
+  </section>
+
+  <div class="modal" id="modal"><div class="box">
+    <h3 id="m-title"></h3><p id="m-text"></p><div class="mlist" id="m-list"></div>
+    <div class="actions"><div id="m-cancel">Cancel</div><div class="go" id="m-ok">OK</div></div>
+  </div></div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

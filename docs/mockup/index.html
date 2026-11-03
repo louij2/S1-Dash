@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>S1-Dash mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@1,500;1,600;1,700&family=Barlow+Semi+Condensed:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Audi RMC / MMI look: black glass, white type, grey secondary, red selection. */
+  :root {
+    --bg-top: #16181a;
+    --bg-bottom: #000;
+    --text: #f2f2f2;
+    --text-dim: #9a9ea3;
+    --text-faint: #5c6066;
+    --line: #3a3d41;
+    --red: #d1102a;
+    --red-dark: #5a0610;
+    --blue: #4a8fd6;
+    --amber: #e0a020;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #0b0c0d;
+    color: var(--text);
+    font-family: "Barlow Semi Condensed", "Roboto Condensed", "Arial Narrow", sans-serif;
+  }
+  .gallery { display: flex; flex-wrap: wrap; gap: 32px; padding: 32px; justify-content: center; }
+  figure { margin: 0; }
+  figcaption { color: var(--text-dim); font-size: 15px; margin-top: 10px; letter-spacing: .02em; }
+  body.single .gallery { padding: 0; gap: 0; }
+  body.single figcaption { display: none; }
+  body.single figure:not(.show) { display: none; }
+
+  .screen {
+    position: relative;
+    width: 800px; height: 480px;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse 120% 60% at 50% 0%, rgba(255,255,255,.06), transparent 60%),
+      linear-gradient(180deg, var(--bg-top), var(--bg-bottom) 70%);
+    border-radius: 6px;
+    box-shadow: 0 0 0 1px #222, 0 20px 50px rgba(0,0,0,.6);
+  }
+  body.single .screen { border-radius: 0; box-shadow: none; }
+
+  /* Header: menu path left, time + outside temp right, fading rule beneath. */
+  .hdr { position: absolute; left: 0; right: 0; top: 0; height: 58px; padding: 0 28px;
+         display: flex; align-items: center; justify-content: space-between; }
+  .hdr .title { font-size: 27px; font-weight: 400; letter-spacing: .01em; }
+  .hdr .title span { color: var(--text-dim); }
+  .hdr .status { font-size: 19px; color: var(--text-dim); display: flex; gap: 18px; }
+  .hdr .status b { color: var(--text); font-weight: 400; }
+  .hdr::after { content: ""; position: absolute; left: 20px; right: 20px; bottom: 0; height: 1px;
+                background: linear-gradient(90deg, transparent, #6a6e73 15%, #6a6e73 85%, transparent); }
+
+  /* Corner softkey labels, like the MMI control-button legends. */
+  .sk { position: absolute; font-size: 17px; color: var(--text-dim); letter-spacing: .03em; }
+  .sk::before { content: ""; position: absolute; width: 14px; height: 14px; border-color: var(--text-faint); border-style: solid; }
+  .sk.bl { left: 26px; bottom: 16px; padding-left: 20px; }
+  .sk.bl::before { left: 0; bottom: 2px; border-width: 0 0 1px 1px; }
+  .sk.br { right: 26px; bottom: 16px; padding-right: 20px; }
+  .sk.br::before { right: 0; bottom: 2px; border-width: 0 1px 1px 0; }
+  .sk.bm { left: 50%; transform: translateX(-50%); bottom: 16px; }
+  .sk.bm::before { display: none; }
+  .sk.on { color: var(--text); }
+
+  /* MMI list */
+  .list { position: absolute; left: 28px; right: 46px; top: 74px; }
+  .row { height: 50px; display: flex; align-items: center; padding: 0 16px; font-size: 23px;
+         border-bottom: 1px solid #1f2124; position: relative; }
+  .row .val { margin-left: auto; color: var(--text-dim); font-size: 20px; }
+  .row .radio { width: 18px; height: 18px; border: 1.5px solid var(--text-dim); border-radius: 50%; margin-right: 16px; position: relative; flex: none; }
+  .row .radio.on::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--text); }
+  .row .box { width: 18px; height: 18px; border: 1.5px solid var(--text-dim); margin-right: 16px; position: relative; flex: none; }
+  .row .box.on::after { content: ""; position: absolute; left: 5px; top: 1px; width: 5px; height: 10px; border: solid var(--text); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+  .row .chev { color: var(--text-faint); margin-left: 14px; font-size: 20px; }
+  .row.sel {
+    background: linear-gradient(180deg, #8a0c1c 0%, var(--red-dark) 55%, #3a040b 100%);
+    border: 1px solid var(--red);
+    border-radius: 3px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 0 18px rgba(209,16,42,.25);
+  }
+  .row.sel .val, .row.sel .chev { color: #f0d0d4; }
+  .row.sel .radio, .row.sel .box { border-color: #fff; }
+  .row.dim { color: var(--text-faint); }
+  .badge { min-width: 30px; text-align: center; padding: 1px 8px; border-radius: 3px; font-size: 18px; margin-left: auto;
+           border: 1px solid var(--line); color: var(--text-dim); }
+  .badge.warn { border-color: var(--red); color: #ff8a98; }
+
+  .scroll { position: absolute; right: 22px; top: 80px; width: 3px; height: 300px; background: #26282b; }
+  .scroll i { position: absolute; left: 0; right: 0; background: #c9ccd0; }
+
+  /* Side info panel */
+  .panel { position: absolute; right: 28px; top: 82px; width: 260px; }
+  .panel h4 { margin: 0 0 8px; font-weight: 400; color: var(--text-dim); font-size: 17px; letter-spacing: .04em; text-transform: uppercase; }
+  .kv { display: flex; justify-content: space-between; font-size: 21px; padding: 7px 0; border-bottom: 1px solid #1f2124; }
+  .kv span { color: var(--text-dim); }
+  .bar { height: 8px; background: #222428; margin: 10px 0 4px; position: relative; }
+  .bar i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #8a0c1c, var(--red)); }
+  .bar i.neutral { background: linear-gradient(90deg, #6a6e73, #e8e8e8); }
+
+  /* Cluster screen: two dials either side of a DIS, like the 8X instrument cluster. */
+  .cluster { position: absolute; inset: 58px 0 40px 0; }
+  .cluster .trim { position: absolute; left: 150px; right: 150px; height: 3px; border-radius: 2px;
+                   background: linear-gradient(90deg, transparent, #6d7175 8%, #e9eaeb 50%, #6d7175 92%, transparent); }
+  .cluster .trim.top { top: 30px; }
+  .cluster .trim.bot { bottom: 22px; }
+  .cluster .dial { position: absolute; top: 46px; width: 300px; height: 300px; }
+  .cluster .dial.l { left: 22px; }
+  .cluster .dial.r { right: 22px; }
+  .cluster .dial svg { width: 300px; height: 300px; display: block; filter: drop-shadow(0 8px 18px rgba(0,0,0,.7)); }
+
+  /* Driver information system: black LCD, white type. */
+  .dis { position: absolute; left: 334px; width: 132px; top: 66px; height: 254px; border-radius: 6px;
+         background: linear-gradient(180deg, #0c0d0e, #000); border: 2px solid #2b2d30;
+         box-shadow: inset 0 0 0 1px #000, 0 0 0 1px #45484c; padding: 10px 10px 8px; font-size: 15px; color: #f4f4f4; }
+  .dis .mode { font-size: 20px; font-weight: 600; text-align: center; letter-spacing: .02em; }
+  .dis .modesub { text-align: center; font-size: 13px; color: #b9bcbf; margin-bottom: 4px; }
+  .dis svg { display: block; margin: 0 auto 4px; }
+  .dis .ln { display: flex; justify-content: space-between; border-top: 1px solid #f4f4f4; padding: 4px 0 3px; }
+  .dis .ln span { color: #b9bcbf; }
+  .dis .msg { font-size: 13px; text-align: center; border-top: 1px solid #f4f4f4; padding-top: 5px; color: #cfe0f4; }
+
+  /* Theme picker swatches */
+  .swatch { display: flex; gap: 6px; margin-left: auto; }
+  .swatch i { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #c9ccd0; }
+  /* Logger */
+  .rec { position: absolute; left: 40px; top: 96px; width: 220px; text-align: center; }
+  .rec .btn { width: 120px; height: 120px; margin: 0 auto; border-radius: 50%; border: 2px solid #6a6e73;
+              display: grid; place-items: center; background: radial-gradient(circle at 50% 35%, #2a2c30, #0c0d0e); }
+  .rec .btn i { width: 46px; height: 46px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #ff5a6e, var(--red) 55%, #6a0612); box-shadow: 0 0 24px rgba(209,16,42,.6); }
+  .rec .time { font-size: 44px; font-weight: 300; margin-top: 16px; letter-spacing: .03em; }
+  .rec .sub { color: var(--text-dim); font-size: 18px; }
+  .logger .list { left: 300px; }
+  .mock { position: absolute; right: 30px; bottom: 44px; font-size: 13px; color: var(--text-faint); letter-spacing: .05em; }
+</style>
+</head>
+<body>
+<div class="gallery">
+
+  <!-- 1. Performance: cluster-style dials, themed -->
+  <figure id="s1">
+    <div class="screen">
+      <div class="hdr">
+        <div class="title"><span>Car ›</span> Performance</div>
+        <div class="status"><span>8.5 °C</span><b>16:42</b></div>
+      </div>
+      <div class="cluster">
+        <div class="trim top"></div>
+        <div class="dial l" id="dialL"></div>
+        <div class="dis">
+          <div class="mode">50 : 50</div>
+          <div class="modesub">quattro · lock 82 %</div>
+          <svg width="70" height="92" viewBox="0 0 70 92">
+            <!-- top-down car, axle bars show where torque goes -->
+            <rect x="17" y="6" width="36" height="80" rx="12" fill="none" stroke="#f4f4f4" stroke-width="2"/>
+            <rect x="23" y="22" width="24" height="14" rx="3" fill="none" stroke="#9a9ea3" stroke-width="1.5"/>
+            <rect x="23" y="56" width="24" height="16" rx="3" fill="none" stroke="#9a9ea3" stroke-width="1.5"/>
+            <rect x="5" y="16" width="8" height="18" rx="2" fill="#f4f4f4"/>
+            <rect x="57" y="16" width="8" height="18" rx="2" fill="#f4f4f4"/>
+            <rect x="5" y="58" width="8" height="18" rx="2" fill="#f4f4f4"/>
+            <rect x="57" y="58" width="8" height="18" rx="2" fill="#f4f4f4"/>
+            <line x1="13" y1="67" x2="57" y2="67" stroke="#f4f4f4" stroke-width="2"/>
+            <line x1="13" y1="25" x2="57" y2="25" stroke="#f4f4f4" stroke-width="2"/>
+          </svg>
+          <div class="ln"><span>Oil</span>74 °C</div>
+          <div class="ln"><span>Clutch</span>41 °C</div>
+          <div class="msg">Oil warming up<br>avoid full load</div>
+        </div>
+        <div class="dial r" id="dialR"></div>
+        <div class="trim bot"></div>
+      </div>
+      <div class="sk bl">All-wheel drive</div>
+      <div class="sk bm">Fault memory</div>
+      <div class="sk br">Data logger</div>
+      <div class="mock">MOCK DATA</div>
+    </div>
+    <figcaption>Car › Performance: boost + coolant (left), oil + Haldex clutch (right), DIS in the middle</figcaption>
+  </figure>
+
+  <!-- 2. AWD mode -->
+  <figure id="s2">
+    <div class="screen">
+      <div class="hdr">
+        <div class="title"><span>Car ›</span> All-wheel drive</div>
+        <div class="status"><span>8.5 °C</span><b>16:42</b></div>
+      </div>
+      <div class="list" style="right:320px">
+        <div class="row"><span class="radio"></span>Stock</div>
+        <div class="row"><span class="radio"></span>FWD</div>
+        <div class="row sel"><span class="radio on"></span>50 : 50</div>
+        <div class="row"><span class="radio"></span>60 : 40</div>
+        <div class="row"><span class="radio"></span>75 : 25</div>
+        <div class="row"><span class="radio"></span>Expert<span class="chev">›</span></div>
+      </div>
+      <div class="panel">
+        <h4>Haldex</h4>
+        <div class="kv"><span>Lock</span>82 %</div>
+        <div class="bar"><i style="width:82%"></i></div>
+        <div class="kv"><span>Clutch temp</span>41 °C</div>
+        <div class="kv"><span>Module temp</span>23 °C</div>
+        <div class="kv"><span>Temp protection</span>Off</div>
+        <div class="kv"><span>Controller</span>9.14.1</div>
+      </div>
+      <div class="sk bl">Performance</div>
+      <div class="sk br">Settings</div>
+      <div class="mock">MOCK DATA</div>
+    </div>
+    <figcaption>Car › All-wheel drive: OpenHaldex modes, live Haldex status</figcaption>
+  </figure>
+
+  <!-- 3. Fault memory -->
+  <figure id="s3">
+    <div class="screen">
+      <div class="hdr">
+        <div class="title"><span>Car ›</span> Fault memory</div>
+        <div class="status"><span>8.5 °C</span><b>16:42</b></div>
+      </div>
+      <div class="list">
+        <div class="row sel">01 Engine electronics<span class="badge warn">7</span><span class="chev">›</span></div>
+        <div class="row">22 All-wheel drive<span class="badge warn">3</span><span class="chev">›</span></div>
+        <div class="row">19 Gateway<span class="badge warn">1</span><span class="chev">›</span></div>
+        <div class="row">03 Brake electronics<span class="badge">0</span><span class="chev">›</span></div>
+        <div class="row">16 Steering wheel<span class="badge">0</span><span class="chev">›</span></div>
+        <div class="row dim">17 Instruments<span class="badge">–</span><span class="chev">›</span></div>
+      </div>
+      <div class="scroll"><i style="top:0;height:110px"></i></div>
+      <div class="sk bl">Read all</div>
+      <div class="sk br">Clear…</div>
+      <div class="mock">MOCK DATA</div>
+    </div>
+    <figcaption>Car › Fault memory: per module; Clear always asks to confirm</figcaption>
+  </figure>
+
+  <!-- 4. Data logger -->
+  <figure id="s4">
+    <div class="screen logger">
+      <div class="hdr">
+        <div class="title"><span>Car ›</span> Data logger</div>
+        <div class="status"><span>8.5 °C</span><b>16:42</b></div>
+      </div>
+      <div class="rec">
+        <div class="btn"><i></i></div>
+        <div class="time">04:37</div>
+        <div class="sub">Recording · 10 Hz</div>
+      </div>
+      <div class="list">
+        <div class="row"><span class="box on"></span>Oil temperature</div>
+        <div class="row"><span class="box on"></span>Coolant</div>
+        <div class="row sel"><span class="box on"></span>Boost pressure</div>
+        <div class="row"><span class="box on"></span>Haldex clutch / lock</div>
+        <div class="row"><span class="box"></span>Raw CAN frames</div>
+        <div class="row">Saved sessions<span class="val">12</span><span class="chev">›</span></div>
+      </div>
+      <div class="scroll"><i style="top:60px;height:140px"></i></div>
+      <div class="sk bl">Performance</div>
+      <div class="sk br">Export</div>
+      <div class="mock">MOCK DATA</div>
+    </div>
+    <figcaption>Car › Data logger: channels, record, export sessions</figcaption>
+  </figure>
+
+  <!-- 5. Theme picker -->
+  <figure id="s5">
+    <div class="screen">
+      <div class="hdr">
+        <div class="title"><span>Settings ›</span> Display theme</div>
+        <div class="status"><span>8.5 °C</span><b>16:42</b></div>
+      </div>
+      <div class="list">
+        <div class="row sel"><span class="radio on"></span>S1 cluster<span class="swatch"><i style="background:#c9cccf"></i><i style="background:#c9cccf"></i></span></div>
+        <div class="row"><span class="radio"></span>A1 quattro<span class="swatch"><i style="background:#a5121c"></i><i style="background:#111"></i></span></div>
+        <div class="row"><span class="radio"></span>MMI black<span class="swatch"><i style="background:#111"></i><i style="background:#111"></i></span></div>
+        <div class="row dim"><span class="radio"></span>Follow head-unit day / night</div>
+      </div>
+      <div class="sk bl">Back</div>
+      <div class="mock">MOCK DATA</div>
+    </div>
+    <figcaption>Settings › Display theme: swap the dial style</figcaption>
+  </figure>
+
+</div>
+<script>
+  // ?s=1..5 shows a single screen at 800x480; &theme=s1|quattro|mmi picks the dial style (used by render.sh).
+  const q = new URLSearchParams(location.search);
+  const s = q.get("s");
+  if (s) { document.body.classList.add("single"); document.getElementById("s" + s).classList.add("show"); }
+
+  // Dial themes. Each face is [centre, edge] of a radial gradient; band = the darker outer tick ring.
+  const THEMES = {
+    s1: {
+      faces: [["#d3d5d7", "#8c8f93"], ["#d3d5d7", "#8c8f93"]], band: "#7e8185", metal: true,
+      tick: "#fbfbfb", num: "#eceded", numStroke: "#55585c", sub: "#e4e5e6", needle: "#fafafa", needleEdge: "#55585c",
+      red: "#e1182e", badge: "s1",
+    },
+    quattro: {
+      faces: [["#cf2a33", "#5c0a0f"], ["#2b2c2e", "#060606"]], band: null,
+      tick: "#f5f5f5", num: "#f5f5f5", numStroke: "none", sub: "#e8e8e8", needle: "#f5f5f5", needleEdge: "#888",
+      red: "#ff2a3c", badge: "quattro",
+    },
+    mmi: {
+      faces: [["#1c1e21", "#050505"], ["#1c1e21", "#050505"]], band: null,
+      tick: "#f2f2f2", num: "#b8bcc0", numStroke: "none", sub: "#9a9ea3", needle: "#ff3b52", needleEdge: "#ff3b52",
+      red: "#d1102a", badge: null,
+    },
+  };
+  const theme = THEMES[q.get("theme")] || THEMES.s1;
+
+  const C = 150;
+  const pt = (deg, r, cx = C, cy = C) => [cx + r * Math.cos(deg * Math.PI / 180), cy + r * Math.sin(deg * Math.PI / 180)];
+  const arc = (a0, a1, r, cx = C, cy = C) => {
+    const [x0, y0] = pt(a0, r, cx, cy), [x1, y1] = pt(a1, r, cx, cy);
+    return `M${x0} ${y0} A${r} ${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1} ${y1}`;
+  };
+  const font = `font-family="Barlow, Barlow Semi Condensed, sans-serif" font-style="italic"`;
+
+  // Tapered needle with a short tail, pointing along angle a.
+  function needle(a, len, tail, w, cx, cy) {
+    const [tx, ty] = pt(a, len, cx, cy), [bx, by] = pt(a + 180, tail, cx, cy);
+    const [l1x, l1y] = pt(a - 90, w, bx, by), [l2x, l2y] = pt(a + 90, w, bx, by);
+    const [t1x, t1y] = pt(a - 90, 0.9, tx, ty), [t2x, t2y] = pt(a + 90, 0.9, tx, ty);
+    return `<polygon points="${l1x},${l1y} ${t1x},${t1y} ${t2x},${t2y} ${l2x},${l2y}" fill="${theme.needle}" stroke="${theme.needleEdge}" stroke-width=".6"/>`;
+  }
+  // Black chrome centre boss with a slot, as on the 8X cluster.
+  function cap(a, r, cx, cy) {
+    const [sx, sy] = pt(a, r * .55, cx, cy), [ex, ey] = pt(a + 180, r * .55, cx, cy);
+    return `<circle cx="${cx}" cy="${cy}" r="${r + 2}" fill="#9a9da1"/>
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#boss)"/>
+      <line x1="${sx}" y1="${sy}" x2="${ex}" y2="${ey}" stroke="#55585c" stroke-width="${r * .35}" stroke-linecap="round"/>`;
+  }
+
+  // Audi S badge: red slanted box with a white edge; a wide square-cornered S starts
+  // inside the box and runs past its right edge; then the 1. Drawn, not a font.
+  function s1Badge(x, y, k) {
+    const S = "M37 3.3 H8.4 Q3.3 3.3 3.3 6.8 Q3.3 10.25 8.4 10.25 H28.6 Q33.7 10.25 33.7 13.7 Q33.7 17.2 28.6 17.2 H0";
+    const one = "0,5.4 8.6,0 14,0 14,20.5 8.4,20.5 8.4,7.4 1.6,11";
+    return `<g transform="translate(${x},${y}) scale(${k}) skewX(-17)">
+      <rect x="0" y="0" width="36" height="34" fill="#e1182e" stroke="#fdfdfd" stroke-width="1.4"/>
+      <g transform="translate(23,8.5)">
+        <path d="${S}" fill="none" stroke="#5f6367" stroke-width="8"/>
+        <path d="${S}" fill="none" stroke="#fbfbfb" stroke-width="6.6"/>
+      </g>
+      <polygon transform="translate(66,8.5)" points="${one}" fill="#fbfbfb" stroke="#5f6367" stroke-width=".8" stroke-linejoin="round"/>
+    </g>`;
+  }
+
+  // Spun-aluminium look for silver faces: alternating light/dark wedges for the
+  // sheen, plus fine radial grain.
+  function metalSheen(id) {
+    let w = "";
+    for (let i = 0; i < 8; i++) {
+      const a0 = i * 45 - 70, a1 = a0 + 45, [x0, y0] = pt(a0, 160), [x1, y1] = pt(a1, 160);
+      const light = i % 2 === 0;
+      w += `<path d="M${C} ${C} L${x0} ${y0} A160 160 0 0 1 ${x1} ${y1} Z" fill="${light ? "#fff" : "#000"}" opacity="${light ? .10 : .06}"/>`;
+    }
+    return `<defs><filter id="grain${id}" x="0" y="0" width="100%" height="100%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.9 0.02" numOctaves="2" seed="3"/>
+        <feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .09 0"/>
+      </filter><filter id="soft${id}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="9"/></filter>
+      <clipPath id="faceclip${id}"><circle cx="${C}" cy="${C}" r="139"/></clipPath></defs>
+      <g clip-path="url(#faceclip${id})"><g filter="url(#soft${id})">${w}</g>
+        <rect x="0" y="0" width="300" height="300" filter="url(#grain${id})" opacity=".8"/></g>`;
+  }
+
+  // One cluster dial plus its sub-dial. main/sub: {min,max,val,step,minor,hot,dec,labels}
+  function dial(id, side, main, sub, unit, subIcon) {
+    const t = theme, face = t.faces[side];
+    const START = 140, SWEEP = 260;
+    const ang = (v, o = main, st = START, sw = SWEEP) => st + sw * (Math.min(Math.max(v, o.min), o.max) - o.min) / (o.max - o.min);
+    let g = `<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg"><defs>
+      <radialGradient id="face${id}" cx="45%" cy="38%" r="70%"><stop offset="0" stop-color="${face[0]}"/><stop offset="1" stop-color="${face[1]}"/></radialGradient>
+      <linearGradient id="bezel${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f7f7f7"/><stop offset=".45" stop-color="#8e9195"/><stop offset=".55" stop-color="#5d6064"/><stop offset="1" stop-color="#e6e7e8"/></linearGradient>
+      <radialGradient id="boss" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#4a4d51"/><stop offset="1" stop-color="#0d0e0f"/></radialGradient>
+    </defs>
+      <circle cx="${C}" cy="${C}" r="147" fill="#0b0b0c"/>
+      <circle cx="${C}" cy="${C}" r="143" fill="none" stroke="url(#bezel${id})" stroke-width="6"/>
+      <circle cx="${C}" cy="${C}" r="139" fill="url(#face${id})"/>`;
+    if (t.metal) g += metalSheen(id);
+    if (t.band) g += `<circle cx="${C}" cy="${C}" r="129" fill="none" stroke="${t.band}" stroke-width="20" opacity=".55"/>`;
+    // ticks
+    for (let v = main.min; v <= main.max + 1e-9; v += main.minor) {
+      const k = (v - main.min) / main.step, major = Math.abs(k - Math.round(k)) < 1e-6;
+      const hot = main.hot != null && v >= main.hot - 1e-9;
+      const a = ang(v), [x0, y0] = pt(a, major ? 120 : 129), [x1, y1] = pt(a, 138);
+      g += `<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}" stroke="${hot ? t.red : t.tick}" stroke-width="${major ? 3.2 : 1.6}"/>`;
+      if (major) {
+        const [nx, ny] = pt(a, 101);
+        const txt = main.labels ? main.labels(v) : (+v.toFixed(main.dec || 0));
+        g += `<text x="${nx}" y="${ny + 10}" fill="${hot ? t.red : t.num}" stroke="${t.numStroke}" stroke-width=".6" font-size="28" font-weight="600" text-anchor="middle" ${font}>${txt}</text>`;
+      }
+    }
+    if (main.hot != null) g += `<path d="${arc(ang(main.hot), ang(main.max), 117)}" fill="none" stroke="${t.red}" stroke-width="4"/>`;
+    // badge
+    if (t.badge === "s1" && side === 0) g += s1Badge(126, 90, 0.68); // whole badge centred on the dial
+    if (t.badge === "quattro" && side === 0) g += `<text x="${C}" y="98" fill="#f5f5f5" font-size="19" font-weight="600" text-anchor="middle" letter-spacing="1" ${font}>quattro</text>`;
+    // unit label along the bottom, like "1/min x1000"
+    g += `<text x="${C}" y="283" fill="${t.num}" font-size="12" text-anchor="middle" ${font}>${unit}</text>`;
+    // sub-dial
+    const SX = C, SY = 222, SR = 44, SST = 200, SSW = 140;
+    const sang = v => ang(v, sub, SST, SSW);
+    g += `<circle cx="${SX}" cy="${SY}" r="${SR}" fill="none" stroke="${t.sub}" stroke-width="1" opacity=".6"/>`;
+    sub.marks.forEach(v => {
+      const hot = sub.hot != null && v >= sub.hot;
+      const a = sang(v), [x0, y0] = pt(a, SR - 10, SX, SY), [x1, y1] = pt(a, SR - 2, SX, SY), [nx, ny] = pt(a, SR - 22, SX, SY);
+      g += `<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}" stroke="${hot ? t.red : t.tick}" stroke-width="2.4"/>
+        <text x="${nx}" y="${ny + 5}" fill="${hot ? t.red : t.num}" font-size="14" font-weight="600" text-anchor="middle" ${font}>${v}</text>`;
+    });
+    g += `<text x="${SX - 30}" y="${SY + 30}" fill="${t.sub}" font-size="11" ${font}>${subIcon}</text>`;
+    g += needle(sang(sub.val), SR - 4, 8, 2, SX, SY) + cap(sang(sub.val), 9, SX, SY);
+    // main needle + boss
+    g += needle(ang(main.val), 132, 26, 3.4, C, C) + cap(ang(main.val), 21, C, C);
+    g += `</svg>`;
+    document.getElementById(id).innerHTML = g;
+  }
+
+  // Left: boost with coolant sub-dial (where the OEM coolant gauge sits). Right: oil with Haldex clutch sub-dial.
+  dial("dialL", 0,
+    { min: 0, max: 2, val: 1.4, step: 0.4, minor: 0.1, hot: 1.6, dec: 1, labels: v => v === 0 ? "0" : v.toFixed(1).replace(/^0/, "") },
+    { min: 50, max: 130, val: 90, marks: [50, 90, 130], hot: 130 }, "boost bar", "coolant °C");
+  dial("dialR", 1,
+    { min: 40, max: 160, val: 74, step: 20, minor: 5, hot: 130 },
+    { min: 0, max: 150, val: 41, marks: [0, 75, 150], hot: 150 }, "oil °C", "Haldex °C");
+</script>
+</body>
+</html>

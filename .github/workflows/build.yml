@@ -1,0 +1,28 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --console=plain
+      - uses: actions/upload-artifact@v4
+        with:
+          name: S1-Dash-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+# Signed release APKs are built and uploaded with scripts/release.sh, so the
+# signing key never has to live in GitHub.

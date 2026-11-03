@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dial with a red needle on a dark round badge. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#111214" android:pathData="M54,4a50,50 0 1,0 0.1,0z" />
+    <path android:strokeColor="#C9CCD0" android:strokeWidth="5" android:fillColor="#00000000" android:pathData="M54,10a44,44 0 1,0 0.1,0z" />
+    <path android:fillColor="#B4B7BA" android:pathData="M54,16a38,38 0 1,0 0.1,0z" />
+    <path android:strokeColor="#E1182E" android:strokeWidth="5" android:strokeLineCap="round" android:pathData="M54,54 L80,30" />
+    <path android:fillColor="#1A1B1D" android:pathData="M54,46a8,8 0 1,0 0.1,0z" />
+</vector>
