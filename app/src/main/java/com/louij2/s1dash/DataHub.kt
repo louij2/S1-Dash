@@ -72,10 +72,15 @@ object DataHub {
         if (key == "boost" && v > boostPeak) boostPeak = v
     }
 
-    fun get(key: String): Double? {
+    /** Values OpenHaldex can stand in for when the ECU dongle isn't connected. The ECU wins when both exist. */
+    private val FALLBACK = mapOf("oil" to "ohOil", "coolant" to "ohCoolant", "boost" to "ohBoost")
+
+    private fun fresh(key: String): Double? {
         val t = stamps[key] ?: return null
         return if (System.currentTimeMillis() - t <= STALE_MS) values[key] else null
     }
+
+    fun get(key: String): Double? = fresh(key) ?: FALLBACK[key]?.let { fresh(it) }
 
     fun snapshot(): String {
         val now = System.currentTimeMillis()
@@ -84,6 +89,7 @@ object DataHub {
             val t = stamps[k] ?: continue
             if (now - t <= STALE_MS) v.put(k, value)
         }
+        for ((k, fb) in FALLBACK) if (!v.has(k)) fresh(fb)?.let { v.put(k, it) }
         val s = JSONObject()
         for ((k, value) in status) s.put(k, value)
         return JSONObject()
