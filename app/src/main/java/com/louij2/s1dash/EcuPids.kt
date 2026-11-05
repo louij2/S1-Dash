@@ -19,6 +19,10 @@ object EcuPids {
     val ALL = listOf(
         Pid("map", 0x39C0, 2, false, true) { it / 10.0 },                    // kPa absolute
         Pid("rpm", 0xF40C, 2, false, true) { it / 4.0 },
+        // Straight after rpm, so clutch slip compares readings taken close together.
+        Pid("ecuSpeed", 0x2033, 2, false, true) { it / 100.0 },              // km/h
+        Pid("gear", 0x210F, 2, false, true) { it + 1.0 },                    // offset unproven: SimosTools' lists differ
+        Pid("torque", 0x437C, 2, true, true) { it / 10.0 },                  // Nm, from PIDs.kt (the USA csv's x / 7.37562 is wrong)
         Pid("knock1", 0x200A, 2, true, true) { it / 100.0 },                 // deg retard
         Pid("knock2", 0x200B, 2, true, true) { it / 100.0 },
         Pid("knock3", 0x200C, 2, true, true) { it / 100.0 },
@@ -38,8 +42,6 @@ object EcuPids {
         Pid("fpMpi", 0x2025, 2, false, false) { it / 1000.0 },               // bar
         Pid("pedal", 0x1070, 2, false, false) { it / 10.24 },                // %
         Pid("battery", 0x14A6, 1, false, false) { it * 0.1015625 },          // V
-        Pid("ecuSpeed", 0x2033, 2, false, false) { it / 100.0 },             // km/h
-        Pid("gear", 0x210F, 2, false, false) { it + 1.0 },
         Pid("misfires", 0x2904, 2, false, false) { it },
         Pid("turbo", 0x1040, 2, false, false) { it / 163.84 },               // krpm
     )

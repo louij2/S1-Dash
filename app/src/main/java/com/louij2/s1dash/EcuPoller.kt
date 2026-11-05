@@ -74,14 +74,15 @@ class EcuPoller(
                     val cmd = commands.poll() ?: break
                     cmd(t)
                 }
-                var answered = 0
-                for (p in fast) if (readPid(t, p)) answered++
+                val readNow = fast.filter { readPid(t, it) }.map { it.key }
+                var answered = readNow.size
                 // A few slow ones per cycle, so temps still update about once a second.
                 repeat(3) {
                     if (readPid(t, slow[slowIdx])) answered++
                     slowIdx = (slowIdx + 1) % slow.size
                 }
                 derive()
+                if (readNow.containsAll(DataHub.CLUTCH_INPUTS)) DataHub.feedClutch(DataHub.clutch)
                 if (answered == 0) {
                     DataHub.status["ecu"] = "no ECU reply"
                     t.close(); transport = null

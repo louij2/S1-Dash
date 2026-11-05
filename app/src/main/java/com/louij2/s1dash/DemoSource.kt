@@ -8,6 +8,7 @@ import kotlin.math.sin
 class DemoSource {
     @Volatile private var running = false
     private var thread: Thread? = null
+    private val clutch = ClutchModel(mapOf(1 to 120.0, 2 to 62.0, 3 to 40.0, 4 to 30.0, 5 to 24.0, 6 to 20.0))
 
     fun start() {
         running = true
@@ -26,7 +27,14 @@ class DemoSource {
             // A pull every ~12 s on a slowly warming engine.
             val pull = max(0.0, sin(t * 0.5))
             val oil = min(104.0, 62.0 + t * 0.25)
-            DataHub.put("rpm", 1500 + pull * 4800)
+            // Every third pull the clutch lets go, to show the slip warning.
+            val rpm = 1500 + pull * 4800
+            val slip = if ((t / PULL_PERIOD_S).toInt() % 3 == 2 && pull > 0.4) 0.08 else 0.0
+            DataHub.put("rpm", rpm)
+            DataHub.put("ecuSpeed", rpm * (1 - slip) / 40.0)
+            DataHub.put("gear", 3.0)
+            DataHub.put("torque", 60 + pull * 310)
+            DataHub.feedClutch(clutch)
             DataHub.put("ambient", 101.3)
             DataHub.put("ambientBar", 1.013)
             DataHub.put("map", 101.3 + pull * 178 - 55 * (1 - pull))
@@ -55,5 +63,9 @@ class DemoSource {
             DataHub.put("dtcHaldex", 0.0)
             try { Thread.sleep(100) } catch (_: InterruptedException) { break }
         }
+    }
+
+    private companion object {
+        const val PULL_PERIOD_S = 4 * Math.PI // sin(t * 0.5)
     }
 }

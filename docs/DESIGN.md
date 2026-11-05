@@ -34,6 +34,7 @@ beside the dials; tall screens stack it under them.
 | Haldex fault codes | OpenHaldex | `POST /api/dtc/read`, `GET /api/dtc`, `POST /api/dtc/clear {"confirm":"CLEAR"}` |
 | Engine live data | Simos18 ECU, UDS `0x22` on `0x7E0` / `0x7E8` | Identifiers and scaling from SimosTools' mode-22 list, in `EcuPids.kt` |
 | Boost | Derived | (MAP `0x39C0` − ambient pressure `0x13CA`) / 100, in bar |
+| Clutch slip, estimated clutch heat | Derived, see below | Engine rpm `0xF40C`, speed `0x2033`, gear `0x210F`, torque `0x437C` |
 | Engine fault codes | UDS `0x19` / `0x14` | Count via `19 01 08` (single frame); full list via `19 02 0D` needs a multi-frame-capable adapter |
 
 ### Dongles
@@ -47,6 +48,31 @@ beside the dials; tall screens stack it under them.
 
 Only one app can hold a dongle. "Open SimosTools" releases it and takes it back
 when S1 Dash returns to the foreground.
+
+### Clutch estimate (manual gearbox)
+
+The manual box has no clutch temperature sensor and no control unit, and the ECU
+has no clutch temperature value, so this is **an estimate, not a reading**. All of
+it lives in `ClutchModel.kt`.
+
+- **Gear ratios** are learned per gear as rpm per km/h: 3 s steady, light load,
+  saved across restarts. Settings can forget them after a tyre change.
+- **Slip %** = (rpm − ratio × speed) / rpm.
+- **Clutch load %**: torque × slip speed integrated into energy, cooling with a
+  240 s time constant. 100 % = 300 kJ, about two hard launches. Neither number
+  is calibrated yet.
+- **"Clutch slipping"** needs 4 % slip for 1 s in 3rd or above, over 40 km/h and
+  120 Nm.
+
+Limits to check on a drive, using the logged `rpm`, `ecuSpeed`, `speed`, `gear`
+and `torque` columns:
+
+- The ECU reports no clutch pedal or neutral. Nothing counts below 3 km/h, so a
+  clutch held on a hill adds no heat; slip with the pedal down reads as slip.
+- SimosTools' lists disagree on the gear offset (`x` or `x + 1`) and the speed
+  scale. The slip maths doesn't care about either, but the gear and km/h gates do.
+- If the ECU works the gear out from rpm and speed, real slip could read as a
+  lower gear and hide itself.
 
 ## Rules
 

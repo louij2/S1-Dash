@@ -13,7 +13,7 @@
     try { var saved = JSON.parse(localStorage.getItem("s1demo") || "{}"); for (var k in saved) settings[k] = saved[k]; } catch (e) {}
     var q = location.search.replace("?", "").split("&");
     q.forEach(function (p) { var kv = p.split("="); if (kv[0] && kv[0] in settings) settings[kv[0]] = decodeURIComponent(kv[1] || ""); });
-    var t0 = Date.now(), peak = 0, logging = false;
+    var t0 = Date.now(), peak = 0, logging = false, demoSlip = /[?&]slip/.test(location.search), demoGears = [1, 2, 3, 4, 5, 6];
     return {
       snapshot: function () {
         var t = (Date.now() - t0) / 1000, pull = Math.max(0, Math.sin(t * 0.5));
@@ -25,6 +25,7 @@
           knock1: 0, knock2: 0, knock3: pull > 0.9 ? -1.5 : 0, knock4: 0, knockAvg: pull > 0.9 ? -0.38 : 0, timing: 8 + (1 - pull) * 14,
           wastegate: 20 + pull * 70, put: 101 + pull * 185, afr: 14.7 - pull * 2.9, lambda: 1 - pull * 0.2, stft: 0.8, ltft: 1.6,
           fpDi: 150 + pull * 200, fpMpi: 4.8, pedal: pull * 100, battery: 14.2, ecuSpeed: 60 + pull * 40, gear: 3, misfires: 0, turbo: 40 + pull * 120,
+          torque: 60 + pull * 310, clutchSlip: demoSlip ? 8 : 0, clutchLoad: demoSlip ? 94 : 22, clutchWarn: demoSlip ? 1 : 0,
           hxMode: 2, hxLock: 30 + pull * 60, hxLockTarget: 30 + pull * 65, hxClutchTemp: Math.min(70, 30 + t * 0.15 + pull * 6),
           hxModuleTemp: 24, hxFinTemp: 22, hxVolts: 13.9, hxTempProt: 0, dtcEcu: 2, dtcHaldex: 0 };
         return JSON.stringify({ v: v, s: { oh: "demo", ecu: "demo" }, peak: /[?&]still/.test(location.search) ? 1.78 : peak, logging: logging, t: Date.now() });
@@ -33,6 +34,7 @@
       setSetting: function (k, v) { settings[k] = v; try { localStorage.setItem("s1demo", JSON.stringify(settings)); } catch (e) {} },
       version: function () { return "browser demo"; },
       setMode: function () {}, resetPeak: function () { peak = 0; },
+      clutchInfo: function () { return JSON.stringify({ gears: demoGears }); }, clutchReset: function () { demoGears = []; },
       haldexDtcs: function () { return JSON.stringify({ state: "done", dtcs: [] }); },
       haldexDtcRead: function () {}, haldexDtcClear: function () {},
       ecuDtcs: function () { return JSON.stringify({ state: "done", dtcs: [{ code: "P3019-00", active: false, confirmed: true }, { code: "U0155-00", active: false, confirmed: true }] }); },
@@ -65,7 +67,7 @@
     if (W >= 1100) {
       cl.style.left = "0px";
       stats.className = "stats on";
-      stats.style.cssText = "left:820px;right:28px;top:76px;bottom:54px";
+      stats.style.cssText = "left:820px;right:28px;top:76px;bottom:54px;overflow-y:auto";
       setTileWidth("perf-tiles", W - 848 > 520 ? "33.33%" : "50%");
     } else if (H >= 700) {
       // Portrait or tall screens: the whole engine data set under the cluster.
@@ -243,12 +245,12 @@
     stft: ["STFT", "%", 1], ltft: ["LTFT", "%", 1], fpDi: ["Fuel DI", "bar", 0], fpMpi: ["Fuel MPI", "bar", 2], pedal: ["Pedal", "%", 0],
     battery: ["ECU volts", "V", 1], ecuSpeed: ["Speed", "km/h", 0], gear: ["Gear", "", 0], misfires: ["Misfires", "", 0], turbo: ["Turbo speed", "krpm", 0],
     hxLock: ["Haldex lock", "%", 0], hxLockTarget: ["Haldex target", "%", 0], hxClutchTemp: ["Haldex clutch", "°C", 0], hxModuleTemp: ["Haldex module", "°C", 0],
-    hxVolts: ["Haldex volts", "V", 1]
+    hxVolts: ["Haldex volts", "V", 1], torque: ["Torque", "Nm", 0], clutchSlip: ["Clutch slip", "%", 1], clutchLoad: ["Clutch load est.", "%", 0]
   };
   var ENGINE_KEYS = ["boost", "map", "mapSp", "ambient", "rpm", "iat", "coolant", "oil", "knockAvg", "knock1", "knock2", "knock3", "knock4",
-    "timing", "wastegate", "put", "afr", "lambda", "stft", "ltft", "fpDi", "fpMpi", "pedal", "battery", "ecuSpeed", "gear", "misfires", "turbo",
+    "timing", "wastegate", "put", "afr", "lambda", "stft", "ltft", "fpDi", "fpMpi", "pedal", "battery", "ecuSpeed", "gear", "torque", "clutchSlip", "clutchLoad", "misfires", "turbo",
     "hxLock", "hxLockTarget", "hxClutchTemp", "hxModuleTemp", "hxVolts"];
-  var PERF_KEYS = ["rpm", "iat", "knockAvg", "timing", "wastegate", "lambda", "ltft", "battery", "hxLock", "hxClutchTemp"];
+  var PERF_KEYS = ["rpm", "iat", "knockAvg", "timing", "wastegate", "lambda", "clutchSlip", "clutchLoad", "hxLock", "hxClutchTemp", "ltft", "battery"];
 
   function buildTiles(id, keys) {
     var h = "", w = $(id).getAttribute("data-w") || "";
@@ -257,6 +259,7 @@
     });
     $(id).innerHTML = h;
   }
+  function clutchState(x) { return x >= 90 ? "alarm" : x >= 70 ? "warn" : ""; }
   function tileState(k, x) {
     if (x === undefined) return "";
     if (k === "knockAvg" || /^knock\d$/.test(k)) return x <= -3 ? "alarm" : x <= -1.5 ? "warn" : "";
@@ -264,6 +267,8 @@
     if (k === "coolant") return x >= 110 ? "alarm" : "";
     if (k === "boost") return x > (parseFloat(settings.boostTarget) || 1.8) + 0.1 ? "warn" : "";
     if (k === "battery" || k === "hxVolts") return x < 11.5 ? "warn" : "";
+    if (k === "clutchLoad") return clutchState(x);
+    if (k === "clutchSlip") return snap.v.clutchWarn === 1 ? "alarm" : "";
     return "";
   }
   function updateTiles(id) {
@@ -348,7 +353,10 @@
     if (v.hxTempProt === 1) return ["alarm", "Haldex temp<br>protection active"];
     if (v.coolant !== undefined && v.coolant >= 110) return ["alarm", "Coolant hot<br>" + v.coolant.toFixed(0) + " °C"];
     if (v.oil !== undefined && v.oil >= 130) return ["alarm", "Oil hot<br>" + v.oil.toFixed(0) + " °C"];
+    if (v.clutchWarn === 1) return ["alarm", "Clutch slipping<br>" + num(v.clutchSlip, 0) + " %"];
+    if (v.clutchLoad !== undefined && v.clutchLoad >= 90) return ["alarm", "Clutch hot<br>estimate"];
     if (v.knockAvg !== undefined && v.knockAvg <= -3) return ["warn", "Knock<br>" + v.knockAvg.toFixed(1) + "°"];
+    if (v.clutchLoad !== undefined && v.clutchLoad >= 70) return ["warn", "Clutch warm<br>estimate"];
     if (v.oil !== undefined && v.oil < 80) return ["", "Oil warming up<br>avoid full load"];
     if (settings.ohEnabled === "1" && s.oh && s.oh !== "connected" && s.oh !== "demo") return ["warn", "OpenHaldex<br>" + s.oh];
     if (settings.ecuAdapter !== "none" && s.ecu && s.ecu.indexOf("connected") !== 0 && s.ecu !== "demo") return ["warn", "ECU<br>" + s.ecu];
@@ -369,6 +377,10 @@
     $("d-peak").textContent = snap.peak > 0.05 ? snap.peak.toFixed(2) + " bar" : "--";
     $("d-atm").textContent = v.ambientBar !== undefined ? v.ambientBar.toFixed(3) + " bar" : "--";
     $("d-hxv").textContent = v.hxVolts !== undefined ? v.hxVolts.toFixed(1) + " V" : "--";
+    $("d-clutch").textContent = num(v.clutchLoad, 0) + " %";
+    var cb = $("d-clutchbar");
+    cb.style.width = (v.clutchLoad !== undefined ? Math.min(100, v.clutchLoad) : 0) + "%";
+    cb.parentNode.className = "cbar " + (v.clutchLoad !== undefined ? clutchState(v.clutchLoad) : "");
     var m = disMessage(v, s);
     $("d-msg").className = "msg " + m[0];
     $("d-msg").innerHTML = m[1];
@@ -433,7 +445,7 @@
       '<div class="row">Saved sessions<span class="val">' + info.sessions + "</span></div>" +
       '<div class="row" style="font-size:16px;color:#9a9ea3">' + info.dir + "</div>" +
       '<div class="row head">Recorded</div>' +
-      '<div class="row" style="font-size:18px;color:#9a9ea3">Boost, MAP, ambient, IAT, coolant, oil, knock 1-4, timing, wastegate, fuel, trims, Haldex mode / lock / temps / volts</div>';
+      '<div class="row" style="font-size:18px;color:#9a9ea3">Boost, MAP, ambient, IAT, coolant, oil, knock 1-4, timing, wastegate, fuel, trims, speed, gear, torque, clutch slip and load estimate, Haldex mode / lock / temps / volts</div>';
   }
   $("rec-btn").onclick = function () {
     var info = JSON.parse(B.logInfo());
@@ -455,6 +467,10 @@
     h += '<div class="row head">Display theme</div>' + radio("theme", "s1", "S1 cluster", "silver") + radio("theme", "quattro", "A1 quattro", "red / black") + radio("theme", "mmi", "MMI black");
     h += '<div class="row head">Dials</div>' + toggle("dtcIndicator", "Fault code indicator", "amber engine light in the header") +
       '<div class="row">Expected peak boost<span class="val">' + settings.boostTarget + ' bar</span><span class="btn" id="bt-down">−</span><span class="btn" id="bt-up">+</span></div>';
+    var gears = [];
+    try { gears = JSON.parse(B.clutchInfo()).gears; } catch (e) {}
+    h += '<div class="row head">Clutch estimate (manual gearbox, no real sensor)</div>' +
+      '<div class="row">Learned gears<span class="val">' + (gears.length ? gears.join(" ") : "none yet, cruise in each gear") + '</span><span class="btn" id="clutch-reset">Reset</span></div>';
     h += '<div class="row head">OpenHaldex (Haldex data and modes)</div>' + toggle("ohEnabled", "Use OpenHaldex", "over its Wi-Fi") +
       '<div class="row">Address<input id="oh-host" value="' + settings.ohHost + '"></div>' +
       '<div class="row dim">Status<span class="val" id="st-oh">' + (s.oh || "--") + "</span></div>";
@@ -483,6 +499,11 @@
     $("pick-dev").onclick = function (e) { e.stopPropagation(); pickDevice(); };
     $("clear-dev").onclick = function (e) { e.stopPropagation(); B.setSetting("ecuMac", ""); renderSettings(); };
     $("set-simos").onclick = openSimos;
+    $("clutch-reset").onclick = function (e) {
+      e.stopPropagation();
+      openModal("Forget learned gears?", "Do this after changing tyre size or gearbox. They are learned again while cruising.", "", "Forget",
+        function () { B.clutchReset(); renderSettings(); });
+    };
     var ver = B.version();
     $("ver").textContent = /^\d/.test(ver) ? "v" + ver : ver;
   }
