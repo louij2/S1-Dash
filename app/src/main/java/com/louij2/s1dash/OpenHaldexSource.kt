@@ -77,7 +77,11 @@ class OpenHaldexSource(private val ctx: Context, private val host: String) {
         DataHub.put("hxLockTarget", num(o, "lockTarget"))
         if (!o.isNull("tempProtection")) DataHub.put("hxTempProt", if (o.optBoolean("tempProtection")) 1.0 else 0.0)
         DataHub.put("ohRpm", num(o, "rpm"))
-        DataHub.put("ohBoost", num(o, "boost"))
+        // OpenHaldex 11.x: boost is gauge mbar (clamped at 0), oil/coolant are whole °C from
+        // Kombi_2 (null when stale). Used only when the ECU dongle gives nothing (DataHub.FALLBACK).
+        num(o, "boost")?.let { DataHub.put("ohBoost", it / 1000.0) }
+        DataHub.put("ohOil", num(o, "oilTemp"))
+        DataHub.put("ohCoolant", num(o, "coolantTemp"))
         DataHub.put("speed", num(o, "speed"))
         DataHub.put("throttle", num(o, "throttle"))
         o.optJSONObject("uds")?.let { u ->
