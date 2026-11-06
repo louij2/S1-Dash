@@ -99,6 +99,8 @@ class MainActivity : Activity() {
 
         @JavascriptInterface fun setMode(mode: Int) { DataHub.openHaldex()?.setMode(mode) }
         @JavascriptInterface fun resetPeak() { DataHub.boostPeak = 0.0 }
+        @JavascriptInterface fun clutchInfo(): String = DataHub.clutchInfoJson()
+        @JavascriptInterface fun clutchReset() = DataHub.clutch.reset()
 
         @JavascriptInterface fun haldexDtcs(): String = DataHub.haldexDtcJson
         @JavascriptInterface fun haldexDtcRead() { DataHub.openHaldex()?.readDtcs() }

@@ -101,6 +101,31 @@ object DataHub {
             .toString()
     }
 
+    /** Learned from real drives and kept across restarts. The demo uses its own model, so it can't touch these. */
+    val clutch: ClutchModel by lazy {
+        ClutchModel(ClutchModel.decode(prefs.getString(CLUTCH_RATIOS_KEY, "") ?: "")) { r ->
+            prefs.edit().putString(CLUTCH_RATIOS_KEY, ClutchModel.encode(r)).apply()
+        }
+    }
+    private const val CLUTCH_RATIOS_KEY = "clutchRatios"
+    val CLUTCH_INPUTS = listOf("rpm", "ecuSpeed", "gear", "torque")
+
+    /** Runs the clutch estimate on the latest readings and publishes the results. */
+    fun feedClutch(model: ClutchModel) {
+        val rpm = get("rpm") ?: return
+        val kmh = get("ecuSpeed") ?: return
+        val gear = get("gear") ?: return
+        val nm = get("torque") ?: return
+        val out = model.update(System.currentTimeMillis(), rpm, kmh, gear.toInt(), nm)
+        put("clutchSlip", out.slipPct)
+        put("clutchLoad", out.loadPct)
+        put("clutchWarn", if (out.warn) 1.0 else 0.0)
+    }
+
+    fun clutchInfoJson(): String = JSONObject()
+        .put("gears", org.json.JSONArray(clutch.learned().keys.sorted()))
+        .toString()
+
     fun startSources() {
         if (setting("demo") == "1") {
             demo = DemoSource().also { it.start() }
@@ -135,7 +160,8 @@ object DataHub {
     val LOG_COLUMNS = listOf(
         "rpm", "boost", "map", "mapSp", "ambient", "iat", "coolant", "oil", "knockAvg",
         "knock1", "knock2", "knock3", "knock4", "timing", "wastegate", "put", "lambda", "afr", "stft", "ltft",
-        "fpDi", "fpMpi", "pedal", "throttle", "speed", "battery",
+        "fpDi", "fpMpi", "pedal", "throttle", "speed", "ecuSpeed", "gear", "torque",
+        "clutchSlip", "clutchLoad", "clutchWarn", "battery",
         "hxMode", "hxLock", "hxLockTarget", "hxClutchTemp", "hxModuleTemp", "hxVolts", "hxTempProt",
     )
 

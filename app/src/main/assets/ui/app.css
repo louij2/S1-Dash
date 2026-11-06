@@ -112,6 +112,10 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 .dis svg { display: block; margin: 0 auto 2px; }
 .dis .ln { display: flex; justify-content: space-between; border-top: 1px solid #f4f4f4; padding: 3px 0 2px; }
 .dis .ln span { color: #b9bcbf; }
+.dis .cbar { height: 5px; background: #222428; margin-bottom: 4px; position: relative; }
+.dis .cbar i { position: absolute; left: 0; top: 0; bottom: 0; background: #f4f4f4; }
+.dis .cbar.warn i { background: var(--amber); }
+.dis .cbar.alarm i { background: #ff6b7d; }
 .dis .msg { font-size: 13px; text-align: center; border-top: 1px solid #f4f4f4; padding-top: 4px; color: #cfe0f4; min-height: 34px; }
 .dis .msg.warn { color: var(--amber); }
 .dis .msg.alarm { color: #ff6b7d; }
