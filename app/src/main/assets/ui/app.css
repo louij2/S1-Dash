@@ -145,6 +145,18 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 .rec .note { color: var(--text-dim); font-size: 17px; }
 .logger .list { left: 300px; }
 
+/* ECU files */
+.row .chk { width: 26px; flex: none; font-weight: 600; }
+.row .chk.pass { color: #6fd08c; }
+.row .chk.warn { color: var(--amber); }
+.row .chk.fail { color: #ff6b7d; }
+.row .chk.wait { color: var(--text-faint); }
+.row .det { margin-left: auto; padding-left: 16px; color: var(--text-dim); font-size: 18px; text-align: right; }
+.row.note { font-size: 18px; color: var(--text-dim); min-height: 40px; padding-top: 6px; padding-bottom: 6px; }
+.row.alert { font-size: 19px; color: var(--amber); min-height: 40px; }
+.sk.go { color: var(--text); }
+.sk.off { color: var(--text-faint); }
+
 /* Modal (confirm / device picker) */
 .modal { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: rgba(0,0,0,.72); display: none; z-index: 10; }
 .modal.on { display: block; }

@@ -13,6 +13,9 @@
     try { var saved = JSON.parse(localStorage.getItem("s1demo") || "{}"); for (var k in saved) settings[k] = saved[k]; } catch (e) {}
     var q = location.search.replace("?", "").split("&");
     q.forEach(function (p) { var kv = p.split("="); if (kv[0] && kv[0] in settings) settings[kv[0]] = decodeURIComponent(kv[1] || ""); });
+    var cal = { state: (location.search.match(/[?&]flash=(\w+)/) || [])[1] || "", slot: 0, slots: [
+      { slot: 0, name: "95 RON", box: "8X0906259 B", sha: "4be81c07", last: "2026-11-05 16:40" }, { slot: 1, name: "99 RON", box: "8X0906259 B", sha: "a17d33f0" },
+      { slot: 2, name: "95 RON with start-stop", box: "8X0906259 B", sha: "c20e94aa" }, { slot: 3 }, { slot: 4 }] };
     var t0 = Date.now(), peak = 0, logging = false, demoSlip = /[?&]slip/.test(location.search), demoGears = [1, 2, 3, 4, 5, 6];
     return {
       snapshot: function () {
@@ -42,13 +45,34 @@
       logStart: function () { logging = true; }, logStop: function () { logging = false; },
       logInfo: function () { return JSON.stringify({ active: logging, sessions: 12, dir: "/sdcard/Android/data/com.louij2.s1dash/files/logs", file: "" }); },
       pairedDevices: function () { return JSON.stringify([{ name: "OBDII", mac: "00:1D:A5:68:98:8A" }, { name: "BLE_TO_ISOTP20", mac: "24:0A:C4:11:22:33" }]); },
-      openSimosTools: function () { return false; }, reconnect: function () {}
+      openSimosTools: function () { return false; }, reconnect: function () {},
+      calState: function () {
+        var o = { state: cal.state, message: "", slots: cal.slots };
+        if (cal.state) { o.slot = cal.slot; o.name = cal.slots[cal.slot].name; }
+        if (cal.state === "check") { o.canFlash = !/[?&]flashblock/.test(location.search); o.checks = [
+          { label: "ECU connection", state: "pass", detail: "Connected" }, { label: "Engine off", state: o.canFlash ? "pass" : "fail", detail: o.canFlash ? "Stopped" : "Engine is running" },
+          { label: "Parked", state: "pass", detail: "Not moving" }, { label: "Battery", state: "warn", detail: "12.4 V. A charger is safer" },
+          { label: "Software number", state: "pass", detail: "8X0906259 B" }, { label: "Fault codes saved", state: "pass", detail: "SimosTools clears them while flashing" }]; }
+        if (cal.state === "handoff") o.file = "S1Dash-slot1-" + o.name + ".bin";
+        if (cal.state === "verify") o.checks = [
+          { label: "ECU answers", state: "pass", detail: "Connected" }, { label: "Software number", state: "pass", detail: "8X0906259 B" },
+          { label: "Flash recorded", state: "pass", detail: "New record on the ECU" }, { label: "Fault codes", state: "warn", detail: "New: U0155-00" },
+          { label: "Idle", state: "wait", detail: "Watching: 6 of 15 s, don't touch the pedal" }];
+        return JSON.stringify(o);
+      },
+      calPick: function (n) { cal.slots[n] = { slot: n, name: "new-file-" + (n + 1), box: "8X0906259 B", sha: "9f3a10c2" }; },
+      calClear: function (n) { cal.slots[n] = { slot: n }; },
+      calPrepare: function (n) { cal.slot = n; cal.state = "check"; },
+      calStart: function () { cal.state = "handoff"; return ""; },
+      calReopen: function () {}, calFinished: function () { cal.state = "verify"; }, calCancel: function () { cal.state = ""; },
+      calFinalise: function () { cal.slots[cal.slot].last = "2026-11-06 18:20"; cal.state = ""; }
     };
   }
 
   function $(id) { return document.getElementById(id); }
   function num(x, d) { return x === undefined || x === null ? "--" : x.toFixed(d); }
   function pad2(n) { return n < 10 ? "0" + n : "" + n; }
+  function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
   var settings = JSON.parse(B.settings());
   var snap = { v: {}, s: {}, peak: 0 };
   var MODES = ["Stock", "FWD", "50 : 50", "60 : 40", "75 : 25", "Expert"];
@@ -292,6 +316,7 @@
     if (id === "faults") renderFaults();
     if (id === "settings") renderSettings();
     if (id === "logger") renderLogger();
+    if (id === "tune") tuneShown = "";
     render();
   }
   window.goBack = function () {
@@ -453,6 +478,79 @@
     setTimeout(renderLogger, 150);
   };
 
+  // ECU files: five CAL slots. SimosTools does the flash; this screen checks before and after.
+  var tuneShown = "";
+  var CHK = { pass: "✓", warn: "!", fail: "✕", wait: "…" };
+  function checkRows(checks) {
+    return checks.map(function (c) {
+      return '<div class="row"><span class="chk ' + c.state + '">' + (CHK[c.state] || "") + "</span>" + esc(c.label) + '<span class="det">' + esc(c.detail) + "</span></div>";
+    }).join("");
+  }
+  function softKey(id, label, cls, fn) {
+    var el = $(id);
+    el.textContent = label || "";
+    el.className = "sk " + (id === "tune-left" ? "bl" : "br") + (cls ? " " + cls : "");
+    el.onclick = fn || null;
+    el.style.display = label ? "block" : "none";
+  }
+  function renderTune() {
+    var json = B.calState();
+    if (json === tuneShown) return;
+    tuneShown = json;
+    var o = JSON.parse(json), h = "";
+    if (o.message) h += '<div class="row alert">' + esc(o.message) + "</div>";
+    if (!o.state) {
+      h += '<div class="row head">CAL slots · flashed by SimosTools</div>';
+      o.slots.forEach(function (s) {
+        var n = s.slot + 1;
+        if (!s.name) { h += '<div class="row dim">Slot ' + n + ' · empty<span class="val"></span><span class="btn" data-pick="' + s.slot + '">Add…</span></div>'; return; }
+        h += '<div class="row">' + n + " · " + esc(s.name) + (s.last ? '<span class="sub">last flashed ' + esc(s.last) + "</span>" : "") +
+          '<span class="val"></span><span class="btn" data-prep="' + s.slot + '">Flash…</span><span class="btn" data-pick="' + s.slot + '">Replace</span><span class="btn" data-clear="' + s.slot + '">✕</span></div>';
+      });
+      h += '<div class="row note">"Last flashed" is what you confirmed here. The ECU can\'t say which file it holds.</div>';
+      softKey("tune-left", "Back", "", function () { window.goBack(); });
+      softKey("tune-right", "");
+    } else if (o.state === "check") {
+      h += '<div class="row head">Before flashing · ' + esc(o.name) + "</div>" + checkRows(o.checks) +
+        '<div class="row note">Ignition on, engine off. Take out any other dongle, and keep the phone or head unit powered.</div>';
+      softKey("tune-left", "Cancel", "", function () { B.calCancel(); tuneShown = ""; });
+      softKey("tune-right", o.canFlash ? "Open SimosTools" : "Waiting for checks", o.canFlash ? "go" : "off", o.canFlash ? function () {
+        openModal("Flash in SimosTools?", "Take out any other dongle. S1 Dash lets go of its dongle and leaves it alone until you say the flash is over. In SimosTools, choose " + o.name + " from Downloads and confirm.", "", "Open SimosTools",
+          function () { var err = B.calStart(); tuneShown = ""; if (err) openModal("Not started", err, "", null, null); });
+      } : null);
+    } else if (o.state === "handoff") {
+      h += '<div class="row head">Flashing in SimosTools · ' + esc(o.name) + "</div>" +
+        '<div class="row">File in Downloads<span class="det">' + esc(o.file || "") + "</span></div>" +
+        '<div class="row">Dongle<span class="det">Released until you tap below</span></div>' +
+        '<div class="row note">Don\'t switch off the ignition or close SimosTools during the flash. When SimosTools says it\'s done, close it, switch the ignition off and on, and tap Flash finished.</div>' +
+        '<div class="row" id="tune-reopen">Back to SimosTools<span class="chev" style="margin-left:auto">↗</span></div>' +
+        '<div class="row dim" id="tune-noflash">I didn\'t flash it<span class="chev" style="margin-left:auto">›</span></div>';
+      softKey("tune-left", "");
+      softKey("tune-right", "Flash finished", "go", function () { B.calFinished(); tuneShown = ""; });
+    } else if (o.state === "verify") {
+      h += '<div class="row head">Health check · ' + esc(o.name) + "</div>" + checkRows(o.checks) +
+        '<div class="row note">Nothing is cleared here. Clear codes in Fault memory when you\'re ready, after any tests that need them.</div>';
+      softKey("tune-left", "");
+      softKey("tune-right", "Finish", "go", function () {
+        var waiting = o.checks.some(function (c) { return c.state === "wait"; });
+        if (!waiting) { B.calFinalise(); tuneShown = ""; return; }
+        openModal("Finish now?", "Some checks haven't finished. This records the slot as flashed anyway.", "", "Finish", function () { B.calFinalise(); tuneShown = ""; });
+      });
+    }
+    $("tune-list").innerHTML = h;
+    function each(sel, fn) { var r = document.querySelectorAll("#tune-list " + sel); for (var i = 0; i < r.length; i++) r[i].onclick = fn; }
+    each("[data-pick]", function () { B.calPick(parseInt(this.getAttribute("data-pick"), 10)); tuneShown = ""; });
+    each("[data-prep]", function () { B.calPrepare(parseInt(this.getAttribute("data-prep"), 10)); tuneShown = ""; });
+    each("[data-clear]", function () {
+      var n = parseInt(this.getAttribute("data-clear"), 10);
+      openModal("Empty slot " + (n + 1) + "?", "This only removes the file from S1 Dash, not from the ECU.", "", "Empty", function () { B.calClear(n); tuneShown = ""; });
+    });
+    if ($("tune-reopen")) $("tune-reopen").onclick = function () { B.calReopen(); };
+    if ($("tune-noflash")) $("tune-noflash").onclick = function () {
+      openModal("Didn't flash it?", "Only say so if SimosTools never started writing. S1 Dash takes the dongle back straight away.", "", "I didn't flash", function () { B.calCancel(); tuneShown = ""; });
+    };
+  }
+
   // Settings
   function renderSettings() {
     settings = JSON.parse(B.settings());
@@ -540,8 +638,11 @@
       $("m-mode").textContent = snap.v.hxMode !== undefined ? MODES[snap.v.hxMode] : "";
       var t = dtcTotal(); $("m-dtc").textContent = t === null ? "" : t + " codes";
       $("m-log").textContent = snap.logging ? "recording" : "";
+      $("m-tune").textContent = snap.s.ecu === "paused for flash" ? "flashing" : "";
     } else if (current === "faults") {
       if (ticks % 10 === 0) renderFaults();
+    } else if (current === "tune") {
+      if (ticks % 5 === 0 || !tuneShown) renderTune();
     } else if (current === "settings") {
       // Only the status lines: rebuilding the list would drop focus from the address box.
       if ($("st-oh")) $("st-oh").textContent = snap.s.oh || "--";

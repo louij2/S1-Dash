@@ -18,6 +18,7 @@
       <div class="row" data-go="engine">Engine data<span class="chev" style="margin-left:auto">›</span></div>
       <div class="row" data-go="faults">Fault memory<span class="val" id="m-dtc"></span><span class="chev">›</span></div>
       <div class="row" data-go="logger">Data logger<span class="val" id="m-log"></span><span class="chev">›</span></div>
+      <div class="row" data-go="tune">ECU files<span class="val" id="m-tune"></span><span class="chev">›</span></div>
       <div class="row" data-go="settings">Settings<span class="chev" style="margin-left:auto">›</span></div>
       <div class="row" id="open-simos">Open SimosTools<span class="val">frees the dongle</span><span class="chev">↗</span></div>
     </div>
@@ -107,6 +108,14 @@
     </div>
     <div class="list" id="log-list"></div>
     <div class="sk bl" data-back>Back</div>
+  </section>
+
+  <!-- ECU files: CAL slots, flashed by SimosTools -->
+  <section class="screen" id="tune">
+    <div class="hdr"><div class="title"><span>Car ›</span> ECU files</div><div class="status"><span class="amb"></span><b class="clock"></b></div></div>
+    <div class="list" id="tune-list"></div>
+    <div class="sk bl" id="tune-left"></div>
+    <div class="sk br" id="tune-right"></div>
   </section>
 
   <!-- Settings -->

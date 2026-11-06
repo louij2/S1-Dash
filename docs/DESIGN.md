@@ -74,6 +74,28 @@ and `torque` columns:
 - If the ECU works the gear out from rpm and speed, real slip could read as a
   lower gear and hide itself.
 
+### ECU files (CAL slots)
+
+Five slots on the head unit, each holding one CAL file. **S1 Dash never writes
+to the ECU; SimosTools does the flash** and has the final say on the file. All
+of it lives in `CalRules.kt` (decisions) and `CalFlash.kt` (files and hand-off).
+
+1. **Before:** reads the ECU and refuses unless the engine is off, the car is
+   parked, the battery is at least 12 V, the SimosTools dongle is connected, the
+   slot file is unchanged and the software number's family matches. No reading
+   counts as not safe. Saves the fault codes and flash record, because SimosTools
+   clears codes while flashing.
+2. **Hand-off:** copies the file to Downloads, reads it back to prove the copy,
+   lets go of the dongle and opens SimosTools. SimosTools has no way to start a
+   flash from another app, so the user picks the file and confirms there.
+3. **While flashing:** the saved state keeps the ECU source off, even if Android
+   kills S1 Dash, until the user taps Flash finished.
+4. **After:** ECU answers, software number unchanged, a new flash record
+   (`0xF15B`), any new fault codes, and 15 s of steady idle. Nothing is cleared.
+
+A live map switch is a different thing: it chooses between maps inside the
+flashed CAL. A slot replaces the whole CAL.
+
 ## Rules
 
 1. **Read-only on the car**, apart from two things the user asks for on
