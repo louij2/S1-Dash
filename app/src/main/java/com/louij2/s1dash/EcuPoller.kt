@@ -44,6 +44,18 @@ class EcuPoller(
 
     fun readDtcs() = commands.offer { t -> readDtcList(t) }
 
+    /** The ECU's software number and flash record, for the checks around a flash. Multi-frame, so ELM adapters may not manage them. */
+    fun readIdentity() = commands.offer { t ->
+        readDid(t, 0xF187)?.let { DataHub.ecuPart = String(it, Charsets.ISO_8859_1).trim() }
+        DataHub.ecuFlashLog = readDid(t, 0xF15B)?.joinToString("") { "%02x".format(it) } ?: ""
+    }
+
+    private fun readDid(t: UdsTransport, did: Int): ByteArray? {
+        val r = t.request(byteArrayOf(0x22, (did shr 8).toByte(), did.toByte()), 1500) ?: return null
+        if (r.size < 3 || r[0] != 0x62.toByte()) return null
+        return r.copyOfRange(3, r.size)
+    }
+
     fun clearDtcs() = commands.offer { t ->
         val r = t.request(byteArrayOf(0x14, 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte()), 3000)
         if (r != null && r.isNotEmpty() && r[0] == 0x54.toByte()) readDtcList(t)

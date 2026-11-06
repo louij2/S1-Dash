@@ -25,6 +25,8 @@ object DataHub {
     @Volatile var haldexDtcJson: String = "{}"
     @Volatile var ecuDtcJson: String = "{}"
     @Volatile var boostPeak: Double = 0.0
+    @Volatile var ecuPart: String? = null       // spare part number, 0xF187
+    @Volatile var ecuFlashLog: String? = null   // flash record, 0xF15B; empty = couldn't be read
 
     lateinit var prefs: SharedPreferences
         private set
@@ -137,7 +139,9 @@ object DataHub {
             openHaldex = OpenHaldexSource(appContext, setting("ohHost")).also { it.start() }
         } else status["oh"] = "off"
         val adapter = setting("ecuAdapter")
-        if (adapter == "bridge" || adapter == "elm") {
+        if (CalFlash.holdsDongle()) {
+            status["ecu"] = "paused for flash"
+        } else if (adapter == "bridge" || adapter == "elm") {
             ecu = EcuPoller(appContext, adapter, setting("ecuMac"), setting("bridgeName")).also { it.start() }
         } else status["ecu"] = "off"
     }

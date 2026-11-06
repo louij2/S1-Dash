@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.bluetooth.BluetoothManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -29,6 +30,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         DataHub.init(this)
+        CalFlash.init(this)
 
         web = WebView(this)
         web.setBackgroundColor(0xFF000000.toInt())
@@ -47,8 +49,19 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         hideSystemBars()
-        // Back from SimosTools: take the dongle again.
+        // Back from SimosTools: take the dongle again. Not after a flash hand-off,
+        // which says "paused for flash" until the user says the flash is over.
         if (DataHub.status["ecu"] == "paused for SimosTools") DataHub.restartSources()
+    }
+
+    @Deprecated("Fine for a single file pick")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        @Suppress("DEPRECATION")
+        super.onActivityResult(requestCode, resultCode, data)
+        val uri = data?.data
+        if (resultCode == RESULT_OK && uri != null && requestCode in PICK_SLOT until PICK_SLOT + CalFlash.SLOTS) {
+            Thread({ CalFlash.addFile(requestCode - PICK_SLOT, uri) }, "cal-add").start()
+        }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -81,6 +94,7 @@ class MainActivity : Activity() {
     private fun askPermissions() {
         val want = if (Build.VERSION.SDK_INT >= 31)
             arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN)
+        else if (Build.VERSION.SDK_INT < 29) arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.WRITE_EXTERNAL_STORAGE)
         else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
         val missing = want.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (missing.isNotEmpty()) requestPermissions(missing.toTypedArray(), 1)
@@ -138,10 +152,25 @@ class MainActivity : Activity() {
             return true
         }
 
+        @JavascriptInterface fun calState(): String = CalFlash.json()
+        @Suppress("DEPRECATION")
+        @JavascriptInterface fun calPick(slot: Int) = runOnUiThread {
+            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), PICK_SLOT + slot)
+        }
+        @JavascriptInterface fun calClear(slot: Int) = CalFlash.clearSlot(slot)
+        @JavascriptInterface fun calPrepare(slot: Int) = CalFlash.prepare(slot)
+        @JavascriptInterface fun calStart(): String = CalFlash.start() ?: ""
+        @JavascriptInterface fun calReopen() = CalFlash.reopenSimos()
+        @JavascriptInterface fun calFinished() = CalFlash.finished()
+        @JavascriptInterface fun calCancel() = CalFlash.cancel()
+        @JavascriptInterface fun calFinalise() = CalFlash.finalise()
+
         /** Reconnect the dongle after coming back from SimosTools. */
         @JavascriptInterface fun reconnect() = DataHub.restartSources()
     }
 }
+
+private const val PICK_SLOT = 100
 
 object BuildConfigInfo {
     fun version(ctx: Context): String = try {
