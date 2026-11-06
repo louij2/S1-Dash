@@ -10,7 +10,11 @@ as OEM+.
   timing, wastegate, AFR / lambda, trims, fuel pressures, turbo speed and more.
 - **Haldex**: switch OpenHaldex modes from the screen; clutch / module temps, voltage, temperature protection.
 - **Fault codes**: an amber engine-light indicator (can be turned off), read and clear engine and Haldex codes.
+- **Clutch estimate** (manual gearbox): slip % and a clutch load bar, worked out from rpm, speed, gear and
+  torque because the car has no clutch temperature sensor. Warns when the clutch slips under load.
 - **Data logger**: CSV at 10 Hz on the head unit's storage.
+- **ECU files**: five slots for CAL files. S1 Dash checks the car, hands the file and dongle to SimosTools
+  for the flash, then runs a health check when you come back.
 - **Open SimosTools** from the menu; the app lets go of the dongle and takes it back when you return.
 
 ## Screens
@@ -22,6 +26,14 @@ as OEM+.
 | Engine data | All-wheel drive | Fault memory | Settings |
 |---|---|---|---|
 | ![](docs/screens/engine.png) | ![](docs/screens/awd.png) | ![](docs/screens/faults.png) | ![](docs/screens/settings.png) |
+
+| Clutch slipping warning | ECU files |
+|---|---|
+| ![](docs/screens/perf-clutch.png) | ![](docs/screens/ecu-files.png) |
+
+| Before the flash | In SimosTools | Health check |
+|---|---|---|
+| ![](docs/screens/flash-checks.png) | ![](docs/screens/flash-handoff.png) | ![](docs/screens/flash-health.png) |
 
 Portrait screens stack the full engine data set under the dials:
 [A1 quattro theme, 1080×1920](docs/screens/perf-portrait.png). Themes: **S1 cluster**, **A1 quattro**, **MMI black**.
@@ -43,6 +55,7 @@ Wider screens get an extra column of engine data, and portrait screens stack it 
 |---|---|---|
 | Haldex mode, lock, clutch / module temp, voltage, codes | [OpenHaldex-C6](https://github.com/louij2/OpenHaldex-C6) over its Wi-Fi (default `192.168.1.1`) | Turn on **Enable Live Diagnostics** in OpenHaldex for the temps and voltage. |
 | Engine data (boost, oil, coolant, knock, …) and engine codes | The Simos18 ECU through a Bluetooth dongle | **SimosTools dongle** (BLE ISO-TP bridge, found by name `BLE_TO_ISOTP20` or by MAC), or an **ELM327** dongle by MAC, for example the steering wheel's while the wheel is switched off. |
+| Clutch slip and load estimate | Worked out from engine data | An estimate, not a reading. Gear ratios are learned while cruising. |
 | Demo mode | Built in | Made-up readings, for trying it without the car. |
 
 Only one app can use a dongle at a time. The ELM327 path asks for one value per
@@ -82,6 +95,7 @@ repo, so builds you make yourself won't install over an official release
 (uninstall it first).
 
 Design notes: [docs/DESIGN.md](docs/DESIGN.md). Original mockup: [docs/mockup/](docs/mockup/).
+README screenshots: `docs/screens/render.sh`.
 
 ## Disclaimer
 
@@ -89,7 +103,9 @@ A hobby project, not affiliated with or endorsed by Audi AG or the Volkswagen
 Group. Audi, S1, A1 and quattro are their trademarks, used here only to say
 which cars this is for. Use at your own risk and keep your eyes on the road:
 set it up while parked. The app only reads data, apart from changing the
-OpenHaldex mode and clearing fault codes, which you ask for on screen.
+OpenHaldex mode and clearing fault codes, which you ask for on screen. It never
+flashes the ECU itself: SimosTools does that, and a failed flash can stop the car
+starting, so use a battery charger and a file you trust.
 
 ECU identifiers and scaling come from
 [SimosTools](https://github.com/Switchleg1/SimosTools)' mode-22 list; the
