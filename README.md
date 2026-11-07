@@ -89,10 +89,10 @@ For the "Open SimosTools" button, install [SimosTools](https://github.com/Switch
 
 JDK 17 and the Android SDK (API 34). The UI is plain HTML/JS in
 `app/src/main/assets/ui/` and also runs in a desktop browser with demo data:
-open `index.html?screen=perf&theme=s1`. CI builds a debug APK on every push.
-Signed releases come from `scripts/release.sh`; the release key is not in the
-repo, so builds you make yourself won't install over an official release
-(uninstall it first).
+open `index.html?screen=perf&theme=s1`. CI builds a debug APK on every push, and
+every merge that changes the app publishes a signed release with the next patch
+version. Docs-only merges don't. The release key is not in the repo, so builds you
+make yourself won't install over an official release (uninstall it first).
 
 Design notes: [docs/DESIGN.md](docs/DESIGN.md). Original mockup: [docs/mockup/](docs/mockup/).
 README screenshots: `docs/screens/render.sh`.

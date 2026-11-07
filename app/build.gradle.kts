@@ -11,8 +11,11 @@ android {
         applicationId = "com.louij2.s1dash"
         minSdk = 28 // Android 9: the MITM box. The Carlinkit T-Box is Android 13.
         targetSdk = 34
-        versionCode = 2
-        versionName = "0.1.1"
+        // Releases get S1DASH_VERSION from scripts/next-version.sh. Raise the default to start a new minor.
+        val version = System.getenv("S1DASH_VERSION") ?: "0.1.1"
+        val (major, minor, patch) = version.split(".").map { it.toInt() }
+        versionCode = major * 1_000_000 + minor * 1_000 + patch
+        versionName = version
     }
 
     // Release signing key is kept OUT of the repo. Point S1DASH_KEYSTORE at the

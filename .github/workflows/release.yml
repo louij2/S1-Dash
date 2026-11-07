@@ -1,0 +1,55 @@
+name: Release
+
+# Every merge that changes the app publishes a signed APK. Docs-only merges don't.
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+      - "LICENSE"
+  workflow_dispatch:
+
+# One at a time, so two quick merges can't pick the same version.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the version comes from the tags
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Check for the signing key
+        id: key
+        env:
+          KEY: ${{ secrets.S1DASH_KEYSTORE_B64 }}
+          PASSWORD: ${{ secrets.S1DASH_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KEY" ] && [ -n "$PASSWORD" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::No release published: add the S1DASH_KEYSTORE_B64 and S1DASH_KEYSTORE_PASSWORD secrets."
+          fi
+      - name: Unit tests
+        if: steps.key.outputs.present == 'true'
+        run: ./gradlew testDebugUnitTest --console=plain
+      - name: Build and publish
+        if: steps.key.outputs.present == 'true'
+        env:
+          KEY: ${{ secrets.S1DASH_KEYSTORE_B64 }}
+          S1DASH_KEYSTORE_PASSWORD: ${{ secrets.S1DASH_KEYSTORE_PASSWORD }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          export S1DASH_KEYSTORE="$RUNNER_TEMP/release.keystore"
+          printf '%s' "$KEY" | base64 -d > "$S1DASH_KEYSTORE"
+          scripts/release.sh
