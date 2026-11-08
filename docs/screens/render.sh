@@ -5,10 +5,13 @@ set -e
 here=$(cd "$(dirname "$0")" && pwd)
 ui="file://$here/../../app/src/main/assets/ui/index.html"
 chrome=${1:-$(ls -d "$HOME"/.cache/ms-playwright/chromium_headless_shell-*/chrome-linux/headless_shell 2>/dev/null | tail -1)}
+[ -x "$chrome" ] || { echo "headless Chrome not found" >&2; exit 1; }
 shot() { # shot <out.png> <width,height> <query>
+  rm -f "$here/$1"
   "$chrome" --no-sandbox --hide-scrollbars --disable-gpu \
     --window-size="$2" --virtual-time-budget=4000 \
     --screenshot="$here/$1" "$ui?still&$3" >/dev/null 2>&1
+  [ -s "$here/$1" ] || { echo "$1 didn't render" >&2; exit 1; }
   echo "$1"
 }
 shot perf-800x480.png   800,480   "screen=perf"
