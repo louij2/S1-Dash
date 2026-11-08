@@ -129,7 +129,7 @@ class IsoTpBleTransport(
     }
 
     @Suppress("DEPRECATION")
-    override fun request(req: ByteArray, timeoutMs: Long): ByteArray? {
+    override fun request(req: ByteArray, timeoutMs: Long, singleFrame: Boolean): ByteArray? {
         val g = gatt ?: return null
         val c = tx ?: return null
         replies.clear()

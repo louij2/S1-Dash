@@ -20,6 +20,8 @@ object DataHub {
 
     private val values = ConcurrentHashMap<String, Double>()
     private val stamps = ConcurrentHashMap<String, Long>()
+    private val holds = ConcurrentHashMap<String, Long>()  // ECU values: how long this adapter's readings stay good
+    @Volatile var focusAll = false                         // a screen is showing values beyond the core dials
     val status = ConcurrentHashMap<String, String>()
 
     @Volatile var haldexDtcJson: String = "{}"
@@ -77,9 +79,27 @@ object DataHub {
     /** Values OpenHaldex can stand in for when the ECU dongle isn't connected. The ECU wins when both exist. */
     private val FALLBACK = mapOf("oil" to "ohOil", "coolant" to "ohCoolant", "boost" to "ohBoost")
 
+    private fun holdFor(key: String) = holds[key] ?: STALE_MS
+
     private fun fresh(key: String): Double? {
         val t = stamps[key] ?: return null
-        return if (System.currentTimeMillis() - t <= STALE_MS) values[key] else null
+        return if (System.currentTimeMillis() - t <= holdFor(key)) values[key] else null
+    }
+
+    fun wantAllValues() = focusAll || Logger.active
+
+    fun setHolds(fastMs: Long, slowMs: Long, fastKeys: List<String>, derived: List<String>) {
+        for (p in EcuPids.ALL) holds[p.key] = slowMs
+        for (k in fastKeys) holds[k] = fastMs
+        for (k in derived) holds[k] = fastMs
+    }
+
+    /** The ECU connection went: don't keep showing its values for a long hold. */
+    fun dropEcuValues() {
+        for (k in holds.keys) { stamps.remove(k); values.remove(k) }
+        holds.clear()
+        status.remove("ecuData")
+        status.remove("ecuRate")
     }
 
     fun get(key: String): Double? = fresh(key) ?: FALLBACK[key]?.let { fresh(it) }
@@ -89,7 +109,7 @@ object DataHub {
         val v = JSONObject()
         for ((k, value) in values) {
             val t = stamps[k] ?: continue
-            if (now - t <= STALE_MS) v.put(k, value)
+            if (now - t <= holdFor(k)) v.put(k, value)
         }
         for ((k, fb) in FALLBACK) if (!v.has(k)) fresh(fb)?.let { v.put(k, it) }
         val s = JSONObject()

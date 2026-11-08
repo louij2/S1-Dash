@@ -11,7 +11,9 @@ interface UdsTransport {
     /** Whether multi-frame (ISO-TP) replies come back reliably, e.g. a full DTC list. */
     val multiFrame: Boolean
     fun open(): Boolean
-    fun request(req: ByteArray, timeoutMs: Long = 600): ByteArray?
+    /** Why [open] failed, if it knows. */
+    val lastError: String get() = ""
+    fun request(req: ByteArray, timeoutMs: Long = 600, singleFrame: Boolean = false): ByteArray?
     fun close()
 }
 
@@ -63,9 +65,7 @@ class EcuPoller(
     }
 
     private fun loop() {
-        val fast = EcuPids.ALL.filter { it.fast }
-        val slow = EcuPids.ALL.filter { !it.fast }
-        var slowIdx = 0
+        val plan = PollPlan(EcuPids.ALL, startReduced = adapter != "bridge")
         var lastDtcCount = 0L
         while (running) {
             try {
@@ -75,7 +75,7 @@ class EcuPoller(
                     t = if (adapter == "bridge") IsoTpBleTransport(ctx, mac, bridgeName) else ElmSppTransport(ctx, mac)
                     if (!t.open()) {
                         t.close()
-                        DataHub.status["ecu"] = "no adapter"
+                        DataHub.status["ecu"] = t.lastError.ifEmpty { "no adapter" }
                         Thread.sleep(5000)
                         continue
                     }
@@ -86,17 +86,20 @@ class EcuPoller(
                     val cmd = commands.poll() ?: break
                     cmd(t)
                 }
+                val started = System.currentTimeMillis()
+                val fast = plan.fast
+                val slow = plan.nextSlow(DataHub.wantAllValues())
                 val readNow = fast.filter { readPid(t, it) }.map { it.key }
-                var answered = readNow.size
-                // A few slow ones per cycle, so temps still update about once a second.
-                repeat(3) {
-                    if (readPid(t, slow[slowIdx])) answered++
-                    slowIdx = (slowIdx + 1) % slow.size
-                }
+                val answered = readNow.size + slow.count { readPid(t, it) }
+                plan.record(fast.size + slow.size, System.currentTimeMillis() - started)
+                DataHub.setHolds(plan.fastHoldMs(), plan.slowHoldMs(DataHub.wantAllValues()), fast.map { it.key }, DERIVED)
+                DataHub.status["ecuData"] = if (plan.reduced) "core" else "full"
+                DataHub.status["ecuRate"] = String.format(java.util.Locale.UK, "%.1f", plan.updatesPerSecond)
                 derive()
                 if (readNow.containsAll(DataHub.CLUTCH_INPUTS)) DataHub.feedClutch(DataHub.clutch)
                 if (answered == 0) {
                     DataHub.status["ecu"] = "no ECU reply"
+                    DataHub.dropEcuValues()
                     t.close(); transport = null
                     Thread.sleep(2000)
                     continue
@@ -109,17 +112,19 @@ class EcuPoller(
                 break
             } catch (e: Exception) {
                 DataHub.status["ecu"] = "error: ${e.javaClass.simpleName}"
+                DataHub.dropEcuValues()
                 transport?.close(); transport = null
                 try { Thread.sleep(3000) } catch (_: InterruptedException) { break }
             }
         }
         transport?.close()
         transport = null
+        DataHub.dropEcuValues()
     }
 
     private fun readPid(t: UdsTransport, p: Pid): Boolean {
         val req = byteArrayOf(0x22, (p.did shr 8).toByte(), p.did.toByte())
-        val r = t.request(req) ?: return false
+        val r = t.request(req, singleFrame = true) ?: return false
         if (r.size < 3 || r[0] != 0x62.toByte()) return false
         if ((r[1].toInt() and 0xFF) != (p.did shr 8) || (r[2].toInt() and 0xFF) != (p.did and 0xFF)) return false
         DataHub.put(p.key, EcuPids.decode(p, r, 3))
@@ -171,6 +176,9 @@ class EcuPoller(
         if (r != null && r.size >= 3 && r[0] == 0x7F.toByte()) String.format("ECU said no (NRC %02X)", r[2]) else fallback
 
     companion object {
+        /** Worked out from polled values each cycle, so they stay as current as the fast list. */
+        private val DERIVED = listOf("boost", "ambientBar", "knockAvg", "lambda", "clutchSlip", "clutchLoad", "clutchWarn")
+
         /** UDS 3-byte DTC -> "P3019" + failure-type byte, as VCDS shows it. */
         fun formatDtc(code: Int): String {
             val hi = (code shr 16) and 0xFF

@@ -113,6 +113,7 @@ class MainActivity : Activity() {
 
         @JavascriptInterface fun setMode(mode: Int) { DataHub.openHaldex()?.setMode(mode) }
         @JavascriptInterface fun resetPeak() { DataHub.boostPeak = 0.0 }
+        @JavascriptInterface fun pollFocus(all: Boolean) { DataHub.focusAll = all }
         @JavascriptInterface fun clutchInfo(): String = DataHub.clutchInfoJson()
         @JavascriptInterface fun clutchReset() = DataHub.clutch.reset()
 
