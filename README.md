@@ -58,7 +58,10 @@ Wider screens get an extra column of engine data, and portrait screens stack it 
 | Clutch slip and load estimate | Worked out from engine data | An estimate, not a reading. Gear ratios are learned while cruising. |
 | Demo mode | Built in | Made-up readings, for trying it without the car. |
 
-Only one app can use a dongle at a time. The ELM327 path asks for one value per
+Only one app can use a dongle at a time. ELM327 adapters must be Bluetooth Classic,
+not Bluetooth LE or Wi-Fi. If an adapter is slow, the app polls the core dials first and
+says so in Settings, and it fetches the other values only where a screen needs them.
+The ELM327 path asks for one value per
 request, because clone ELMs mangle multi-frame replies; reading the full engine
 code list needs the SimosTools dongle.
 

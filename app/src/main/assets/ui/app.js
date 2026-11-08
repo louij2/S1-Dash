@@ -31,12 +31,12 @@
           torque: 60 + pull * 310, clutchSlip: demoSlip ? 8 : 0, clutchLoad: demoSlip ? 94 : 22, clutchWarn: demoSlip ? 1 : 0,
           hxMode: 2, hxLock: 30 + pull * 60, hxLockTarget: 30 + pull * 65, hxClutchTemp: Math.min(70, 30 + t * 0.15 + pull * 6),
           hxModuleTemp: 24, hxFinTemp: 22, hxVolts: 13.9, hxTempProt: 0, dtcEcu: 2, dtcHaldex: 0 };
-        return JSON.stringify({ v: v, s: { oh: "demo", ecu: "demo" }, peak: /[?&]still/.test(location.search) ? 1.78 : peak, logging: logging, t: Date.now() });
+        return JSON.stringify({ v: v, s: { oh: "demo", ecu: /[?&]elm/.test(location.search) ? "connected (ELM327)" : "demo", ecuData: /[?&]elm/.test(location.search) ? "core" : undefined, ecuRate: /[?&]elm/.test(location.search) ? "3.2" : undefined },  peak: /[?&]still/.test(location.search) ? 1.78 : peak, logging: logging, t: Date.now() });
       },
       settings: function () { return JSON.stringify(settings); },
       setSetting: function (k, v) { settings[k] = v; try { localStorage.setItem("s1demo", JSON.stringify(settings)); } catch (e) {} },
       version: function () { return "browser demo"; },
-      setMode: function () {}, resetPeak: function () { peak = 0; },
+      setMode: function () {}, resetPeak: function () { peak = 0; }, pollFocus: function () {},
       clutchInfo: function () { return JSON.stringify({ gears: demoGears }); }, clutchReset: function () { demoGears = []; },
       haldexDtcs: function () { return JSON.stringify({ state: "done", dtcs: [] }); },
       haldexDtcRead: function () {}, haldexDtcClear: function () {},
@@ -93,6 +93,7 @@
       stats.className = "stats on";
       stats.style.cssText = "left:820px;right:28px;top:76px;bottom:54px;overflow-y:auto";
       setTileWidth("perf-tiles", W - 848 > 520 ? "33.33%" : "50%");
+      if (current) pushFocus();
     } else if (H >= 700) {
       // Portrait or tall screens: the whole engine data set under the cluster.
       cl.style.left = Math.round((W - 800) / 2) + "px";
@@ -100,8 +101,10 @@
       stats.style.cssText = "left:28px;right:28px;top:450px;bottom:54px;overflow-y:auto";
       if ($("perf-tiles").children.length !== ENGINE_KEYS.length) buildTiles("perf-tiles", ENGINE_KEYS);
       setTileWidth("perf-tiles", "33.33%");
+      if (current) pushFocus();
     } else {
       cl.style.left = Math.round((W - 800) / 2) + "px";
+      if (current) pushFocus();
     }
     setTileWidth("eng-tiles", W >= 1300 ? "20%" : W >= 1000 ? "25%" : H >= 700 ? "33.33%" : "25%");
   }
@@ -317,7 +320,17 @@
     if (id === "settings") renderSettings();
     if (id === "logger") renderLogger();
     if (id === "tune") tuneShown = "";
+    pushFocus();
     render();
+  }
+  // Slow adapters only fetch the core dials, unless this screen shows the rest.
+  function pushFocus() {
+    B.pollFocus(current === "engine" || (current === "perf" && $("perf-stats").className.indexOf("on") >= 0));
+  }
+  function dataNote() {
+    var s = snap.s;
+    if (!s.ecuRate) return "";
+    return s.ecuData === "core" ? "slow adapter, core dials first · " + s.ecuRate + " updates/s" : "all values · " + s.ecuRate + " updates/s";
   }
   window.goBack = function () {
     if ($("modal").className.indexOf("on") >= 0) { closeModal(); return true; }
@@ -574,9 +587,10 @@
       '<div class="row dim">Status<span class="val" id="st-oh">' + (s.oh || "--") + "</span></div>";
     h += '<div class="row head">Engine ECU (Simos18 live data, same set as SimosTools)</div>' +
       radio("ecuAdapter", "none", "None") + radio("ecuAdapter", "bridge", "SimosTools dongle", "BLE ISO-TP bridge") +
-      radio("ecuAdapter", "elm", "ELM327 dongle", "e.g. the steering wheel's; switch the wheel off first") +
+      radio("ecuAdapter", "elm", "ELM327 dongle", "Bluetooth Classic only, slower: core dials first. No flashing") +
       '<div class="row">Dongle<span class="val">' + (settings.ecuMac || (settings.ecuAdapter === "bridge" ? "find by name " + settings.bridgeName : "not set")) + '</span><span class="btn" id="pick-dev">Choose…</span><span class="btn" id="clear-dev">Clear</span></div>' +
-      '<div class="row dim">Status<span class="val" id="st-ecu">' + (s.ecu || "--") + "</span></div>";
+      '<div class="row dim">Status<span class="val" id="st-ecu">' + (s.ecu || "--") + "</span></div>" +
+      '<div class="row dim">Data<span class="val" id="st-data">' + (dataNote() || "--") + "</span></div>";
     h += '<div class="row head">Other</div>' + toggle("demo", "Demo mode", "made-up readings, no car needed") +
       '<div class="row" id="set-simos">Open SimosTools<span class="val">frees the dongle</span><span class="chev">↗</span></div>';
     $("set-list").innerHTML = h;
@@ -633,7 +647,7 @@
     renderCommon();
     if (current === "perf") renderPerf();
     else if (current === "awd") renderAwd();
-    else if (current === "engine") { updateTiles("eng-tiles"); $("eng-status").textContent = "ECU: " + (snap.s.ecu || "--"); }
+    else if (current === "engine") { updateTiles("eng-tiles"); $("eng-status").textContent = snap.s.ecuRate ? "ECU " + snap.s.ecuRate + " updates/s" : "ECU: " + (snap.s.ecu || "--"); }
     else if (current === "menu") {
       $("m-mode").textContent = snap.v.hxMode !== undefined ? MODES[snap.v.hxMode] : "";
       var t = dtcTotal(); $("m-dtc").textContent = t === null ? "" : t + " codes";
@@ -647,6 +661,7 @@
       // Only the status lines: rebuilding the list would drop focus from the address box.
       if ($("st-oh")) $("st-oh").textContent = snap.s.oh || "--";
       if ($("st-ecu")) $("st-ecu").textContent = snap.s.ecu || "--";
+      if ($("st-data")) $("st-data").textContent = dataNote() || "--";
     } else if (current === "logger" && snap.logging) {
       var sec = Math.floor((Date.now() - (recStart || Date.now())) / 1000);
       $("rec-time").textContent = pad2(Math.floor(sec / 60)) + ":" + pad2(sec % 60);

@@ -43,8 +43,17 @@ beside the dials; tall screens stack it under them.
   write `abf1`, notify `abf2`. Every packet is an 8-byte header (`0xF1`,
   flags, rx id LE, tx id LE, length LE) plus the raw UDS payload. The bridge
   does ISO-TP, so multi-frame replies work.
-- **ELM327** over Bluetooth Classic SPP, by MAC address. Clone ELMs mangle
+- **ELM327** over Bluetooth Classic SPP, by MAC address. `ElmProtocol.kt` copes
+  with what clones do, and `FakeElm` in the tests simulates them. Bluetooth LE and
+  Wi-Fi ELMs can't connect. Clone ELMs mangle
   multi-frame replies, so live data asks for one identifier at a time.
+
+`PollPlan.kt` picks the values from how fast the adapter really answers. Over 70 ms
+a request, it polls the core dials (MAP, rpm, speed, gear, torque, then ambient,
+temps, knock, timing and volts in turn), and fetches the rest only for the Engine
+data screen, a wide screen's tiles or the logger. How long a reading stays on
+screen follows how long it takes to come round again, up to 60 s, and a dropped
+connection clears the values at once.
 
 Only one app can hold a dongle. "Open SimosTools" releases it and takes it back
 when S1 Dash returns to the foreground.
