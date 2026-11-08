@@ -38,6 +38,19 @@ as OEM+.
 Portrait screens stack the full engine data set under the dials:
 [A1 quattro theme, 1080×1920](docs/screens/perf-portrait.png). Themes: **S1 cluster**, **A1 quattro**, **MMI black**.
 
+## Android Auto (experimental)
+
+For cars that only have Android Auto, through a wireless dongle or the factory screen. S1 Dash
+runs on the phone and adds an icon with live readings and Haldex modes as simple lists. Android
+Auto doesn't allow the dials.
+
+1. Install S1 Dash on the phone, open it once, allow Bluetooth and set up your adapters.
+2. In Android Auto's settings, tap the version 10 times to unlock developer settings. Then, from the
+   three-dot menu, open **Developer settings** and turn on **Unknown sources**. This can reset after updates.
+3. Reconnect to the car. The S1 Dash icon is with the other apps; you may need to enable it in Android Auto's launcher settings.
+
+Wireless Android Auto may stop the phone joining OpenHaldex's Wi-Fi, which would leave Haldex readings empty.
+
 ## Which head units
 
 One APK for all of them (Android 9 and newer):

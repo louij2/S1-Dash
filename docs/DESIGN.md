@@ -105,6 +105,18 @@ of it lives in `CalRules.kt` (decisions) and `CalFlash.kt` (files and hand-off).
 A live map switch is a different thing: it chooses between maps inside the
 flashed CAL. A slot replaces the whole CAL.
 
+### Android Auto
+
+`S1CarService.kt` is a media browser service whose items are readings and Haldex
+modes. Google's Unknown sources developer option covers media apps but not apps
+built with the Car App Library, which must come from a trusted source such as Play.
+So the proper route needs Play, and this one must never go there. It plays no audio.
+
+The dongle is taken only when a list is opened, because Android Auto binds on every
+connection. Only Android Auto and S1 Dash itself may browse. Not yet tried on a
+phone or in the Desktop Head Unit: check the icon, list refresh every 2 s, whether
+it disturbs music controls, background Bluetooth, and OpenHaldex over wireless.
+
 ## Rules
 
 1. **Read-only on the car**, apart from two things the user asks for on

@@ -148,6 +148,21 @@ object DataHub {
         .put("gears", org.json.JSONArray(clutch.learned().keys.sorted()))
         .toString()
 
+    private val sourceOwners = HashSet<String>()
+
+    /** The phone screen and Android Auto both need the data, so it runs until the last of them lets go. */
+    @Synchronized
+    fun acquireSources(owner: String) {
+        val first = sourceOwners.isEmpty()
+        sourceOwners += owner
+        if (first) startSources()
+    }
+
+    @Synchronized
+    fun releaseSources(owner: String) {
+        if (sourceOwners.remove(owner) && sourceOwners.isEmpty()) stopSources()
+    }
+
     fun startSources() {
         if (setting("demo") == "1") {
             demo = DemoSource().also { it.start() }
