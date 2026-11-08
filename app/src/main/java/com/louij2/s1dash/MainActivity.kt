@@ -43,7 +43,7 @@ class MainActivity : Activity() {
         web.loadUrl("file:///android_asset/ui/index.html")
 
         askPermissions()
-        DataHub.startSources()
+        DataHub.acquireSources(OWNER)
     }
 
     override fun onResume() {
@@ -86,7 +86,7 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         DataHub.Logger.stop()
-        DataHub.stopSources()
+        DataHub.releaseSources(OWNER)
         web.destroy()
         super.onDestroy()
     }
@@ -172,6 +172,7 @@ class MainActivity : Activity() {
 }
 
 private const val PICK_SLOT = 100
+private const val OWNER = "screen"
 
 object BuildConfigInfo {
     fun version(ctx: Context): String = try {
