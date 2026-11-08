@@ -1,0 +1,46 @@
+name: Screenshots
+
+# Keeps the README screenshots in step with the UI. Pull requests only render them
+# as a check, and a merge commits them. Commits made with this token don't start
+# other workflows, so this can't loop or publish a release.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/src/main/assets/ui/**"
+      - "docs/screens/render.sh"
+  pull_request:
+    paths:
+      - "app/src/main/assets/ui/**"
+      - "docs/screens/render.sh"
+      - ".github/workflows/screens.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install headless Chromium
+        run: npx --yes playwright@1.49.1 install --with-deps chromium
+      - name: Render
+        run: docs/screens/render.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screens
+          path: docs/screens/*.png
+      - name: Commit
+        if: github.event_name != 'pull_request'
+        run: |
+          git add docs/screens
+          git diff --cached --quiet && exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update README screenshots"
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin "HEAD:$GITHUB_REF_NAME"
