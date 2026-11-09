@@ -18,6 +18,8 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      - name: UI script syntax
+        run: node --check app/src/main/assets/ui/app.js
       - name: Unit tests
         run: ./gradlew testDebugUnitTest --console=plain
       - name: Build debug APK

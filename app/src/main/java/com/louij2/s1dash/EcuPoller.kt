@@ -71,6 +71,14 @@ class EcuPoller(
             try {
                 var t = transport
                 if (t == null) {
+                    // SimosTools has it, maybe logging. Say so and leave it alone rather than keep trying.
+                    if (adapter == "bridge" && IsoTpBleTransport.heldElsewhere(ctx, mac, bridgeName)) {
+                        DataHub.status["ecu"] = "in use by SimosTools"
+                        DataHub.status["simos"] = "connected"
+                        Thread.sleep(5000)
+                        continue
+                    }
+                    DataHub.status.remove("simos")
                     DataHub.status["ecu"] = "connecting"
                     t = if (adapter == "bridge") IsoTpBleTransport(ctx, mac, bridgeName) else ElmSppTransport(ctx, mac)
                     if (!t.open()) {
@@ -119,6 +127,7 @@ class EcuPoller(
         }
         transport?.close()
         transport = null
+        DataHub.status.remove("simos")
         DataHub.dropEcuValues()
     }
 

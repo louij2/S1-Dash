@@ -17,6 +17,7 @@ shot() { # shot <out.png> <width,height> <query>
 shot perf-800x480.png   800,480   "screen=perf"
 shot perf-1920x720.png  1920,720  "screen=perf"
 shot perf-portrait.png  1080,1920 "screen=perf&theme=quattro"
+shot perf-tablet.png    1280,800  "screen=perf"
 shot perf-clutch.png    800,480   "screen=perf&slip"
 shot engine.png         1024,600  "screen=engine"
 shot awd.png            800,480   "screen=awd"

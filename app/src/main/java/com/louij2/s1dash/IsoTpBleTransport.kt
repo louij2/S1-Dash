@@ -169,6 +169,12 @@ class IsoTpBleTransport(
     }
 
     companion object {
+        /** Android knows when another app on this device holds the dongle: it stops advertising, so a scan can't tell. */
+        fun heldElsewhere(ctx: Context, mac: String, name: String): Boolean = try {
+            (ctx.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).getConnectedDevices(BluetoothProfile.GATT)
+                .any { (mac.isNotBlank() && it.address.equals(mac.trim(), true)) || it.name == name }
+        } catch (_: Exception) { false }
+
         val SERVICE: UUID = UUID.fromString("0000abf0-0000-1000-8000-00805f9b34fb")
         val DATA_TX: UUID = UUID.fromString("0000abf1-0000-1000-8000-00805f9b34fb")
         val DATA_RX: UUID = UUID.fromString("0000abf2-0000-1000-8000-00805f9b34fb")

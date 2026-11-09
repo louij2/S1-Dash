@@ -11,9 +11,10 @@ runs on all of them from one APK (minSdk 28, Android 9):
 3. Replacement 10" / 13" Android screen, landscape or portrait, or a phone mirrored to the screen
 ```
 
-The UI is laid out at 480 logical pixels tall in landscape (800 wide in
-portrait) and scaled to fit. Wide screens get an extra column of engine data
-beside the dials; tall screens stack it under them.
+The UI is scaled to the largest size at which 800 x 480 logical pixels fit the
+screen, then fills the rest. Wide screens get an extra column of engine data
+beside the dials; tall screens stack it under them, in as many columns as it
+takes to fit. Settings can shrink it to 90, 80 or 70 %.
 
 ## How it is built
 
