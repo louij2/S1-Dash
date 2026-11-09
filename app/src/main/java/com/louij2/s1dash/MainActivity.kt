@@ -36,6 +36,10 @@ class MainActivity : Activity() {
         web.setBackgroundColor(0xFF000000.toInt())
         web.settings.javaScriptEnabled = true
         web.settings.domStorageEnabled = true
+        web.settings.textZoom = 100 // the phone's font size setting would break the fixed layout
+        web.isVerticalScrollBarEnabled = false
+        web.isHorizontalScrollBarEnabled = false
+        web.overScrollMode = View.OVER_SCROLL_NEVER
         web.webViewClient = WebViewClient()
         web.webChromeClient = WebChromeClient()
         web.addJavascriptInterface(Bridge(), "S1")

@@ -9,7 +9,7 @@
 
   function demoBridge() {
     var settings = { theme: "s1", ohEnabled: "1", ohHost: "192.168.1.1", ecuAdapter: "bridge", ecuMac: "",
-      bridgeName: "BLE_TO_ISOTP20", dtcIndicator: "1", boostTarget: "1.8", demo: "1" };
+      bridgeName: "BLE_TO_ISOTP20", dtcIndicator: "1", boostTarget: "1.8", demo: "1", uiScale: "100" };
     try { var saved = JSON.parse(localStorage.getItem("s1demo") || "{}"); for (var k in saved) settings[k] = saved[k]; } catch (e) {}
     var q = location.search.replace("?", "").split("&");
     q.forEach(function (p) { var kv = p.split("="); if (kv[0] && kv[0] in settings) settings[kv[0]] = decodeURIComponent(kv[1] || ""); });
@@ -31,7 +31,7 @@
           torque: 60 + pull * 310, clutchSlip: demoSlip ? 8 : 0, clutchLoad: demoSlip ? 94 : 22, clutchWarn: demoSlip ? 1 : 0,
           hxMode: 2, hxLock: 30 + pull * 60, hxLockTarget: 30 + pull * 65, hxClutchTemp: Math.min(70, 30 + t * 0.15 + pull * 6),
           hxModuleTemp: 24, hxFinTemp: 22, hxVolts: 13.9, hxTempProt: 0, dtcEcu: 2, dtcHaldex: 0 };
-        return JSON.stringify({ v: v, s: { oh: "demo", ecu: /[?&]elm/.test(location.search) ? "connected (ELM327)" : "demo", ecuData: /[?&]elm/.test(location.search) ? "core" : undefined, ecuRate: /[?&]elm/.test(location.search) ? "3.2" : undefined },  peak: /[?&]still/.test(location.search) ? 1.78 : peak, logging: logging, t: Date.now() });
+        return JSON.stringify({ v: v, s: { oh: "demo", simos: /[?&]simos/.test(location.search) ? "connected" : undefined, ecu: /[?&]simos/.test(location.search) ? "in use by SimosTools" : /[?&]elm/.test(location.search) ? "connected (ELM327)" : "demo", ecuData: /[?&]elm/.test(location.search) ? "core" : undefined, ecuRate: /[?&]elm/.test(location.search) ? "3.2" : undefined },  peak: /[?&]still/.test(location.search) ? 1.78 : peak, logging: logging, t: Date.now() });
       },
       settings: function () { return JSON.stringify(settings); },
       setSetting: function (k, v) { settings[k] = v; try { localStorage.setItem("s1demo", JSON.stringify(settings)); } catch (e) {} },
@@ -77,36 +77,44 @@
   var snap = { v: {}, s: {}, peak: 0 };
   var MODES = ["Stock", "FWD", "50 : 50", "60 : 40", "75 : 25", "Expert"];
 
-  // ---------- stage scaling: 480 logical px tall in landscape, 800 wide in portrait ----------
+  // ---------- stage scaling: the largest size at which 800 x 480 logical px fits, then fill what's left ----------
   var W = 800, H = 480;
   function layout() {
-    var sw = window.innerWidth, sh = window.innerHeight, aspect = sw / sh, scale;
-    if (aspect >= 1.25) { H = 480; W = Math.max(800, Math.round(480 * aspect)); scale = sh / 480; }
-    else { W = 800; H = Math.max(480, Math.round(800 / aspect)); scale = sw / 800; }
+    var sw = window.innerWidth, sh = window.innerHeight;
+    if (!sw || !sh) return; // a WebView can report nothing until it's laid out; resize comes after
+    var scale = Math.min(sw / 800, sh / 480) * (parseInt(settings.uiScale, 10) || 100) / 100;
+    W = Math.floor(sw / scale); H = Math.floor(sh / scale);
     var st = $("stage");
     st.style.width = W + "px"; st.style.height = H + "px";
     st.style.transform = "scale(" + scale + ")";
     var cl = $("cluster"), stats = $("perf-stats");
     stats.className = "stats";
+    cl.style.top = (58 + Math.max(0, Math.round((H - 480) / 2))) + "px";
     if (W >= 1100) {
       cl.style.left = "0px";
       stats.className = "stats on";
       stats.style.cssText = "left:820px;right:28px;top:76px;bottom:54px;overflow-y:auto";
-      setTileWidth("perf-tiles", W - 848 > 520 ? "33.33%" : "50%");
-      if (current) pushFocus();
+      if ($("perf-tiles").children.length !== PERF_KEYS.length) buildTiles("perf-tiles", PERF_KEYS);
+      fitTiles("perf-tiles", W - 848, H - 130);
     } else if (H >= 700) {
       // Portrait or tall screens: the whole engine data set under the cluster.
       cl.style.left = Math.round((W - 800) / 2) + "px";
+      cl.style.top = "58px";
       stats.className = "stats on";
       stats.style.cssText = "left:28px;right:28px;top:450px;bottom:54px;overflow-y:auto";
       if ($("perf-tiles").children.length !== ENGINE_KEYS.length) buildTiles("perf-tiles", ENGINE_KEYS);
-      setTileWidth("perf-tiles", "33.33%");
-      if (current) pushFocus();
+      fitTiles("perf-tiles", W - 56, H - 504);
     } else {
       cl.style.left = Math.round((W - 800) / 2) + "px";
-      if (current) pushFocus();
     }
+    if (current) pushFocus();
     setTileWidth("eng-tiles", W >= 1300 ? "20%" : W >= 1000 ? "25%" : H >= 700 ? "33.33%" : "25%");
+  }
+  // Enough columns that all the tiles fit, unless they'd get too narrow to read.
+  function fitTiles(id, w, h) {
+    var n = $(id).children.length, cols = 2;
+    while (Math.ceil(n / cols) * TILE_H > h && w / (cols + 1) >= TILE_MIN_W) cols++;
+    setTileWidth(id, (100 / cols).toFixed(2) + "%");
   }
   function setTileWidth(id, w) {
     var t = $(id).children;
@@ -277,6 +285,7 @@
   var ENGINE_KEYS = ["boost", "map", "mapSp", "ambient", "rpm", "iat", "coolant", "oil", "knockAvg", "knock1", "knock2", "knock3", "knock4",
     "timing", "wastegate", "put", "afr", "lambda", "stft", "ltft", "fpDi", "fpMpi", "pedal", "battery", "ecuSpeed", "gear", "torque", "clutchSlip", "clutchLoad", "misfires", "turbo",
     "hxLock", "hxLockTarget", "hxClutchTemp", "hxModuleTemp", "hxVolts"];
+  var TILE_H = 72, TILE_MIN_W = 140;
   var PERF_KEYS = ["rpm", "iat", "knockAvg", "timing", "wastegate", "lambda", "clutchSlip", "clutchLoad", "hxLock", "hxClutchTemp", "ltft", "battery"];
 
   function buildTiles(id, keys) {
@@ -383,6 +392,9 @@
     var total = dtcTotal(), show = settings.dtcIndicator === "1" && total;
     var dt = document.querySelectorAll(".dtc");
     for (i = 0; i < dt.length; i++) { dt[i].className = "dtc" + (show ? " show" : ""); dt[i].innerHTML = show ? DTC_ICON + total : ""; }
+    var st = snap.s.simos ? "SimosTools connected" : snap.s.ecu === "paused for SimosTools" ? "SimosTools open" : "";
+    var si = document.querySelectorAll(".simos");
+    for (i = 0; i < si.length; i++) { si[i].textContent = st; si[i].style.display = st ? "block" : "none"; }
     var amb = document.querySelectorAll(".amb"), a = snap.v.ambientBar;
     for (i = 0; i < amb.length; i++) amb[i].textContent = a !== undefined ? a.toFixed(3) + " bar" : "";
   }
@@ -576,8 +588,11 @@
       return '<div class="row" data-set="' + key + '" data-val="' + (on ? "0" : "1") + '"><span class="box' + (on ? " on" : "") + '"></span>' + label + (sub ? '<span class="sub">' + sub + "</span>" : "") + "</div>";
     }
     h += '<div class="row head">Display theme</div>' + radio("theme", "s1", "S1 cluster", "silver") + radio("theme", "quattro", "A1 quattro", "red / black") + radio("theme", "mmi", "MMI black");
+    h += '<div class="row head">Screen size</div>' + radio("uiScale", "100", "Auto fit", "largest that fits this screen") +
+      radio("uiScale", "90", "90 %") + radio("uiScale", "80", "80 %", "more data on bigger screens") + radio("uiScale", "70", "70 %");
     h += '<div class="row head">Dials</div>' + toggle("dtcIndicator", "Fault code indicator", "amber engine light in the header") +
-      '<div class="row">Expected peak boost<span class="val">' + settings.boostTarget + ' bar</span><span class="btn" id="bt-down">−</span><span class="btn" id="bt-up">+</span></div>';
+      '<div class="row">Expected peak boost<span class="val">' + (parseFloat(settings.boostTarget) || 1.8).toFixed(2) + ' bar</span>' +
+      [-0.1, -0.01, 0.01, 0.1].map(function (d) { return '<span class="btn" data-step="' + d + '">' + (d < 0 ? "−" : "+") + Math.abs(d) + "</span>"; }).join("") + "</div>";
     var gears = [];
     try { gears = JSON.parse(B.clutchInfo()).gears; } catch (e) {}
     h += '<div class="row head">Clutch estimate (manual gearbox, no real sensor)</div>' +
@@ -599,15 +614,16 @@
       var k = this.getAttribute("data-set"), val = this.getAttribute("data-val");
       B.setSetting(k, val); settings[k] = val;
       if (k === "theme" || k === "boostTarget") buildDials();
+      if (k === "uiScale") layout();
       renderSettings();
     };
     $("oh-host").onchange = function () { B.setSetting("ohHost", this.value.trim()); };
     function stepBoost(d) {
-      var x = Math.max(0.5, Math.min(1.9, Math.round(((parseFloat(settings.boostTarget) || 1.8) + d) * 10) / 10));
-      B.setSetting("boostTarget", x.toFixed(1)); settings.boostTarget = x.toFixed(1); buildDials(); renderSettings();
+      var x = Math.max(0.5, Math.min(1.9, Math.round(((parseFloat(settings.boostTarget) || 1.8) + d) * 100) / 100));
+      B.setSetting("boostTarget", x.toFixed(2)); settings.boostTarget = x.toFixed(2); buildDials(); renderSettings();
     }
-    $("bt-down").onclick = function (e) { e.stopPropagation(); stepBoost(-0.1); };
-    $("bt-up").onclick = function (e) { e.stopPropagation(); stepBoost(0.1); };
+    var steps = document.querySelectorAll("#set-list [data-step]");
+    for (i = 0; i < steps.length; i++) steps[i].onclick = function (e) { e.stopPropagation(); stepBoost(parseFloat(this.getAttribute("data-step"))); };
     $("pick-dev").onclick = function (e) { e.stopPropagation(); pickDevice(); };
     $("clear-dev").onclick = function (e) { e.stopPropagation(); B.setSetting("ecuMac", ""); renderSettings(); };
     $("set-simos").onclick = openSimos;
@@ -674,6 +690,10 @@
   }
 
   // ---------- start ----------
+  (function () {
+    var h = document.querySelectorAll(".hdr .status");
+    for (var i = 0; i < h.length; i++) { var p = document.createElement("span"); p.className = "simos"; h[i].insertBefore(p, h[i].firstChild); }
+  })();
   buildDials();
   buildModes();
   buildTiles("eng-tiles", ENGINE_KEYS);

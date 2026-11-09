@@ -35,7 +35,7 @@ as OEM+.
 |---|---|---|
 | ![](docs/screens/flash-checks.png) | ![](docs/screens/flash-handoff.png) | ![](docs/screens/flash-health.png) |
 
-Portrait screens stack the full engine data set under the dials:
+[Tablet, 16:10](docs/screens/perf-tablet.png). Portrait screens stack the full engine data set under the dials:
 [A1 quattro theme, 1080×1920](docs/screens/perf-portrait.png). Themes: **S1 cluster**, **A1 quattro**, **MMI black**.
 
 ## Android Auto (experimental)
@@ -59,8 +59,9 @@ One APK for all of them (Android 9 and newer):
 - **Carlinkit T-Box style boxes** (Android 13), which can hold several Bluetooth links at once.
 - **Big replacement screens** (10", 13", landscape or portrait) and **phones** mirrored to the car's screen.
 
-The UI is laid out for 480 logical pixels of height and scales to the screen.
-Wider screens get an extra column of engine data, and portrait screens stack it under the dials.
+The UI picks the largest size that fits the screen, whatever its shape. Wider screens get an
+extra column of engine data, and portrait screens stack it under the dials. If the edges are
+hidden, or you'd like more on screen, **Settings › Screen size** makes it smaller.
 
 ## Where the data comes from
 

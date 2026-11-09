@@ -48,6 +48,7 @@ object DataHub {
         "dtcIndicator" to "1",
         "boostTarget" to "1.8",       // expected peak boost, bar, marked on the dial
         "demo" to "0",
+        "uiScale" to "100",           // percent of the largest size that fits the screen
     )
 
     fun init(ctx: Context) {
