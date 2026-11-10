@@ -8,3 +8,5 @@ captures/
 ios/build/
 ios/S1Dash.xcodeproj/xcuserdata/
 ios/S1Dash.xcodeproj/project.xcworkspace/xcuserdata/
+ios/Local.xcconfig
+.DS_Store
