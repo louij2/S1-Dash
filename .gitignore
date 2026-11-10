@@ -5,3 +5,6 @@ local.properties
 *.iml
 .idea/
 captures/
+ios/build/
+ios/S1Dash.xcodeproj/xcuserdata/
+ios/S1Dash.xcodeproj/project.xcworkspace/xcuserdata/
