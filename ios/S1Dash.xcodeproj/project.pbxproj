@@ -12,6 +12,7 @@
 
 /* Begin PBXFileReference section */
 		5D1A00000000000000000004 /* S1Dash.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = S1Dash.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5D1A00000000000000000020 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		5D1A00000000000000000002 /* ui */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ui; path = ../app/src/main/assets/ui; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
@@ -35,6 +36,7 @@
 			children = (
 				5D1A00000000000000000005 /* S1Dash */,
 				5D1A00000000000000000002 /* ui */,
+				5D1A00000000000000000020 /* Signing.xcconfig */,
 				5D1A0000000000000000000A /* Products */,
 			);
 			sourceTree = "<group>";
@@ -153,7 +155,9 @@
 		};
 		5D1A00000000000000000010 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5D1A00000000000000000020 /* Signing.xcconfig */;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -171,14 +175,18 @@
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.louij2.s1dash;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = "1,2,6";
 			};
 			name = Debug;
 		};
 		5D1A00000000000000000011 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5D1A00000000000000000020 /* Signing.xcconfig */;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -196,8 +204,10 @@
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.louij2.s1dash;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = "1,2,6";
 			};
 			name = Release;
 		};

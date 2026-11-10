@@ -1,0 +1,4 @@
+// Your Apple team stays out of the repo: put `DEVELOPMENT_TEAM = <your team ID>`
+// in ios/Local.xcconfig (git ignores it). Xcode shows the ID under
+// Signing & Capabilities, or leave the file out and pick the team there.
+#include? "Local.xcconfig"
