@@ -4,6 +4,11 @@ The same dash screens as the Android app, in a small Swift wrapper. For now it
 runs the built-in demo data: no OpenHaldex or ECU connection yet, and no CarPlay.
 The screens come straight from `app/src/main/assets/ui`, so a fix lands in both apps.
 
+**CarPlay (simulator only, for now):** simulator builds carry Apple's CarPlay
+"driving task" entitlement, so the CarPlay screen (live readings and Haldex modes,
+demo data) can be tried in Simulator › I/O › External Displays › CarPlay. A real
+head unit needs Apple to grant the entitlement first.
+
 It also builds as a Mac app (Mac Catalyst): pick **My Mac** as the run destination.
 
 ## Build and run
