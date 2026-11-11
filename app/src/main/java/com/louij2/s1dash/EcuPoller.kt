@@ -32,6 +32,10 @@ class EcuPoller(
     private var thread: Thread? = null
     private var transport: UdsTransport? = null
     private val commands = LinkedBlockingQueue<(UdsTransport) -> Unit>()
+    private val guard = PollGuard()
+    /** Whether this ECU takes several DIDs per request; cleared after repeated refusals. */
+    private var multiOk = true
+    private var multiFails = 0
 
     fun start() {
         running = true
@@ -53,13 +57,13 @@ class EcuPoller(
     }
 
     private fun readDid(t: UdsTransport, did: Int): ByteArray? {
-        val r = t.request(byteArrayOf(0x22, (did shr 8).toByte(), did.toByte()), 1500) ?: return null
+        val r = send(t, byteArrayOf(0x22, (did shr 8).toByte(), did.toByte()), 1500) ?: return null
         if (r.size < 3 || r[0] != 0x62.toByte()) return null
         return r.copyOfRange(3, r.size)
     }
 
     fun clearDtcs() = commands.offer { t ->
-        val r = t.request(byteArrayOf(0x14, 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte()), 3000)
+        val r = send(t, byteArrayOf(0x14, 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte()), 3000)
         if (r != null && r.isNotEmpty() && r[0] == 0x54.toByte()) readDtcList(t)
         else DataHub.ecuDtcJson = JSONObject().put("state", "error").put("message", nrc(r, "Clear refused")).toString()
     }
@@ -88,17 +92,40 @@ class EcuPoller(
                         continue
                     }
                     transport = t
+                    guard.reset()
+                    multiOk = true
+                    multiFails = 0
                     DataHub.status["ecu"] = "connected (${t.label})"
                 }
                 while (true) {
                     val cmd = commands.poll() ?: break
                     cmd(t)
                 }
+                if (!guard.warm) {
+                    // Only rpm until the engine has been running a while (#767: drops at ignition on),
+                    // plus speed and battery while the ECU files check needs them.
+                    val keys = guard.coldKeys(CalFlash.checkingBeforeFlash())
+                    val rpm = EcuPids.ALL.first { it.key == "rpm" }
+                    val ok = readPid(t, rpm)
+                    if (ok) EcuPids.ALL.filter { it.key in keys && it.key != "rpm" }.forEach { readPid(t, it) }
+                    guard.feedRpm(if (ok) DataHub.get("rpm") else null)
+                    if (!ok) {
+                        DataHub.status["ecu"] = "no ECU reply"
+                        DataHub.dropEcuValues()
+                        t.close(); transport = null
+                        Thread.sleep(2000)
+                        continue
+                    }
+                    DataHub.status["ecu"] = if (guard.warm) "connected (${t.label})" else "connected (${t.label}), waiting for the engine"
+                    DataHub.status.remove("ecuRate")
+                    if (!guard.warm) Thread.sleep(PollGuard.PROBE_EVERY_MS)
+                    continue
+                }
                 val started = System.currentTimeMillis()
                 val fast = plan.fast
                 val slow = plan.nextSlow(DataHub.wantAllValues())
-                val readNow = fast.filter { readPid(t, it) }.map { it.key }
-                val answered = readNow.size + slow.count { readPid(t, it) }
+                val readNow = readGroup(t, fast)
+                val answered = readNow.size + readGroup(t, slow).size
                 plan.record(fast.size + slow.size, System.currentTimeMillis() - started)
                 DataHub.setHolds(plan.fastHoldMs(), plan.slowHoldMs(DataHub.wantAllValues()), fast.map { it.key }, DERIVED)
                 DataHub.status["ecuData"] = if (plan.reduced) "core" else "full"
@@ -131,9 +158,39 @@ class EcuPoller(
         DataHub.dropEcuValues()
     }
 
+    /** Waits as long as the ceiling needs, then sends. Every request to the ECU goes through here. */
+    private fun send(t: UdsTransport, req: ByteArray, timeoutMs: Long = 600, singleFrame: Boolean = false): ByteArray? {
+        val wait = guard.waitMs()
+        if (wait > 0) Thread.sleep(wait)
+        guard.sent()
+        return t.request(req, timeoutMs, singleFrame)
+    }
+
+    /**
+     * Reads [pids] and returns the keys that answered. Adapters with reliable multi-frame
+     * replies (the BLE bridge) get up to 8 DIDs per request; ELM adapters ask one at a time.
+     */
+    private fun readGroup(t: UdsTransport, pids: List<Pid>): List<String> {
+        if (!t.multiFrame || !multiOk || pids.size < 2) return pids.filter { readPid(t, it) }.map { it.key }
+        val keys = ArrayList<String>()
+        for (chunk in pids.chunked(EcuPids.MAX_PER_REQUEST)) {
+            val got = send(t, EcuPids.request(chunk))?.let { EcuPids.decodeMulti(chunk, it) }
+            if (got == null) {
+                // Refused or didn't line up: ask one at a time, and stop trying after a few in a row.
+                if (++multiFails >= 3) multiOk = false
+                chunk.filter { readPid(t, it) }.mapTo(keys) { it.key }
+                continue
+            }
+            multiFails = 0
+            got.forEach { (k, v) -> DataHub.put(k, v) }
+            keys.addAll(got.keys)
+        }
+        return keys
+    }
+
     private fun readPid(t: UdsTransport, p: Pid): Boolean {
         val req = byteArrayOf(0x22, (p.did shr 8).toByte(), p.did.toByte())
-        val r = t.request(req, singleFrame = true) ?: return false
+        val r = send(t, req, singleFrame = true) ?: return false
         if (r.size < 3 || r[0] != 0x62.toByte()) return false
         if ((r[1].toInt() and 0xFF) != (p.did shr 8) || (r[2].toInt() and 0xFF) != (p.did and 0xFF)) return false
         DataHub.put(p.key, EcuPids.decode(p, r, 3))
@@ -148,12 +205,25 @@ class EcuPoller(
         if (amb != null) DataHub.put("ambientBar", amb / 100.0)
         val k = listOf("knock1", "knock2", "knock3", "knock4").mapNotNull { DataHub.get(it) }
         if (k.size == 4) DataHub.put("knockAvg", k.average())
-        DataHub.get("afr")?.let { DataHub.put("lambda", it / 14.7) }
+        val lambda = DataHub.get("afr")?.let { it / 14.7 }
+        if (lambda != null) DataHub.put("lambda", lambda)
+        // Actual minus target, so a gap shows at a glance.
+        val mapSp = DataHub.get("mapSp")
+        if (map != null && mapSp != null) DataHub.put("boostDev", (map - mapSp) / 100.0)
+        DataHub.get("lambdaSp")?.let { sp -> if (lambda != null) DataHub.put("lambdaDev", lambda - sp) }
+        dev("fpDi", "fpDiSp", "fpDiDev")
+        dev("fpMpi", "fpMpiSp", "fpMpiDev")
+    }
+
+    private fun dev(actual: String, target: String, out: String) {
+        val a = DataHub.get(actual) ?: return
+        val sp = DataHub.get(target) ?: return
+        DataHub.put(out, a - sp)
     }
 
     /** ReadDTCInformation, reportNumberOfDTCByStatusMask (confirmed): a single-frame reply. */
     private fun readDtcCount(t: UdsTransport) {
-        val r = t.request(byteArrayOf(0x19, 0x01, 0x08), 1500) ?: return
+        val r = send(t, byteArrayOf(0x19, 0x01, 0x08), 1500) ?: return
         if (r.size >= 6 && r[0] == 0x59.toByte()) {
             DataHub.put("dtcEcu", (((r[4].toInt() and 0xFF) shl 8) or (r[5].toInt() and 0xFF)).toDouble())
         }
@@ -161,7 +231,7 @@ class EcuPoller(
 
     /** ReadDTCInformation, reportDTCByStatusMask. Multi-frame when there are more than one or two codes. */
     private fun readDtcList(t: UdsTransport) {
-        val r = t.request(byteArrayOf(0x19, 0x02, 0x0D), 3000)
+        val r = send(t, byteArrayOf(0x19, 0x02, 0x0D), 3000)
         val out = JSONObject()
         if (r == null || r.size < 3 || r[0] != 0x59.toByte()) {
             out.put("state", "error").put("message", if (t.multiFrame) nrc(r, "No reply") else "This adapter can't read the full list; use the SimosTools dongle")
@@ -186,7 +256,7 @@ class EcuPoller(
 
     companion object {
         /** Worked out from polled values each cycle, so they stay as current as the fast list. */
-        private val DERIVED = listOf("boost", "ambientBar", "knockAvg", "lambda", "clutchSlip", "clutchLoad", "clutchWarn")
+        private val DERIVED = listOf("boost", "ambientBar", "knockAvg", "lambda", "boostDev", "lambdaDev", "fpDiDev", "fpMpiDev", "clutchSlip", "clutchLoad", "clutchWarn")
 
         /** UDS 3-byte DTC -> "P3019" + failure-type byte, as VCDS shows it. */
         fun formatDtc(code: Int): String {

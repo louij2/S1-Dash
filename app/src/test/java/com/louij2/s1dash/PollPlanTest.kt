@@ -54,7 +54,8 @@ class PollPlanTest {
         repeat(20) { p.record(7, 2000) }
         assertEquals(5000L, p.fastHoldMs())
         assertEquals(25000L, p.slowHoldMs(false)) // 10 values, 2 a cycle, 2 s a cycle, x 2.5
-        assertEquals(52500L, p.slowHoldMs(true)) // 21 values
+        val slowAll = EcuPids.ALL.size - PollPlan.CORE_FAST.size // core slow + extras
+        assertEquals(minOf(PollPlan.MAX_HOLD_MS, slowAll / 2 * 2000 * 5 / 2L), p.slowHoldMs(true))
         repeat(20) { p.record(7, 8000) }
         assertEquals(PollPlan.MAX_HOLD_MS, p.slowHoldMs(true))
         val q = plan(false)
