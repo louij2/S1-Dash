@@ -6,6 +6,18 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PollGuardTest {
+    @Test fun coldEngineReadsOnlyRpmUnlessTheFlashCheckNeedsMore() {
+        val g = PollGuard { 0L }
+        assertEquals(listOf("rpm"), g.coldKeys(false))
+        val flash = g.coldKeys(true)
+        assertEquals("rpm", flash[0])
+        // CalRules.preflight blocks the Flash button without these.
+        listOf("ecuSpeed", "battery").forEach { k ->
+            assertTrue(k, k in flash)
+            assertTrue(k, EcuPids.ALL.any { it.key == k })
+        }
+    }
+
     private var clock = 1_000L
     private val g = PollGuard { clock }
 

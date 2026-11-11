@@ -32,6 +32,14 @@ class PollGuard(private val now: () -> Long = System::currentTimeMillis) {
         }
     }
 
+    /**
+     * What to read while the engine isn't warm. Normally only rpm. The ECU files check
+     * is done with the engine off, by design, and needs speed and battery too, or its
+     * Flash button would wait forever.
+     */
+    fun coldKeys(flashCheck: Boolean): List<String> =
+        if (flashCheck) listOf("rpm", "ecuSpeed", "battery") else listOf("rpm")
+
     /** How long to wait before the next request to stay under the ceiling. */
     fun waitMs(): Long = max(0L, lastRequest + MIN_GAP_MS - now())
 

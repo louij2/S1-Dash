@@ -102,9 +102,12 @@ class EcuPoller(
                     cmd(t)
                 }
                 if (!guard.warm) {
-                    // Only rpm until the engine has been running a while (#767: drops at ignition on).
+                    // Only rpm until the engine has been running a while (#767: drops at ignition on),
+                    // plus speed and battery while the ECU files check needs them.
+                    val keys = guard.coldKeys(CalFlash.checkingBeforeFlash())
                     val rpm = EcuPids.ALL.first { it.key == "rpm" }
                     val ok = readPid(t, rpm)
+                    if (ok) EcuPids.ALL.filter { it.key in keys && it.key != "rpm" }.forEach { readPid(t, it) }
                     guard.feedRpm(if (ok) DataHub.get("rpm") else null)
                     if (!ok) {
                         DataHub.status["ecu"] = "no ECU reply"

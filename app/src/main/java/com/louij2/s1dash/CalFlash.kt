@@ -43,6 +43,9 @@ object CalFlash {
 
     fun holdsDongle(): Boolean = state == "handoff"
 
+    /** On the before-flash checks, which need engine-off readings from the ECU. */
+    fun checkingBeforeFlash(): Boolean = state == "check"
+
     private fun dir() = File(ctx.filesDir, "cal").also { it.mkdirs() }
     private fun slotFile(n: Int) = File(dir(), "slot$n.bin")
     private fun meta(n: Int): JSONObject? = prefs.getString("calSlot$n", null)?.let { try { JSONObject(it) } catch (_: Exception) { null } }
