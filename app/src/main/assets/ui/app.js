@@ -27,7 +27,8 @@
           boost: boost, coolant: Math.min(90, 70 + t * 0.4), oil: Math.min(104, 62 + t * 0.25), iat: 18 + pull * 9,
           knock1: 0, knock2: 0, knock3: pull > 0.9 ? -1.5 : 0, knock4: 0, knockAvg: pull > 0.9 ? -0.38 : 0, timing: 8 + (1 - pull) * 14,
           wastegate: 20 + pull * 70, put: 101 + pull * 185, afr: 14.7 - pull * 2.9, lambda: 1 - pull * 0.2, stft: 0.8, ltft: 1.6,
-          fpDi: 150 + pull * 200, fpMpi: 4.8, pedal: pull * 100, battery: 14.2, ecuSpeed: 60 + pull * 40, gear: 3, misfires: 0, turbo: 40 + pull * 120,
+          fpDi: 150 + pull * 200, fpMpi: 4.8, putSp: 101 + pull * 190, lambdaSp: 1 - pull * 0.19, torqueReq: 60 + pull * 320,
+          fpDiSp: 150 + pull * 205, fpMpiSp: 5, lpfpDuty: 30 + pull * 45, boostDev: -pull * 0.04, lambdaDev: -pull * 0.01, fpDiDev: -pull * 5, fpMpiDev: -0.2, pedal: pull * 100, battery: 14.2, ecuSpeed: 60 + pull * 40, gear: 3, misfires: 0, turbo: 40 + pull * 120,
           torque: 60 + pull * 310, clutchSlip: demoSlip ? 8 : 0, clutchLoad: demoSlip ? 94 : 22, clutchWarn: demoSlip ? 1 : 0,
           hxMode: 2, hxLock: 30 + pull * 60, hxLockTarget: 30 + pull * 65, hxClutchTemp: Math.min(70, 30 + t * 0.15 + pull * 6),
           hxModuleTemp: 24, hxFinTemp: 22, hxVolts: 13.9, hxTempProt: 0, dtcEcu: 2, dtcHaldex: 0 };
@@ -280,10 +281,14 @@
     stft: ["STFT", "%", 1], ltft: ["LTFT", "%", 1], fpDi: ["Fuel DI", "bar", 0], fpMpi: ["Fuel MPI", "bar", 2], pedal: ["Pedal", "%", 0],
     battery: ["ECU volts", "V", 1], ecuSpeed: ["Speed", "km/h", 0], gear: ["Gear", "", 0], misfires: ["Misfires", "", 0], turbo: ["Turbo speed", "krpm", 0],
     hxLock: ["Haldex lock", "%", 0], hxLockTarget: ["Haldex target", "%", 0], hxClutchTemp: ["Haldex clutch", "°C", 0], hxModuleTemp: ["Haldex module", "°C", 0],
-    hxVolts: ["Haldex volts", "V", 1], torque: ["Torque", "Nm", 0], clutchSlip: ["Clutch slip", "%", 1], clutchLoad: ["Clutch load est.", "%", 0]
+    hxVolts: ["Haldex volts", "V", 1], torque: ["Torque", "Nm", 0],
+    putSp: ["Pre-throttle target", "kPa", 0], lambdaSp: ["Lambda target", "λ", 2], torqueReq: ["Torque request", "Nm", 0],
+    fpDiSp: ["Fuel DI target", "bar", 0], fpMpiSp: ["Fuel MPI target", "bar", 2], lpfpDuty: ["LPFP duty", "%", 0],
+    boostDev: ["Boost vs target", "bar", 2], lambdaDev: ["Lambda vs target", "λ", 2], fpDiDev: ["Fuel DI vs target", "bar", 0], fpMpiDev: ["Fuel MPI vs target", "bar", 2], clutchSlip: ["Clutch slip", "%", 1], clutchLoad: ["Clutch load est.", "%", 0]
   };
   var ENGINE_KEYS = ["boost", "map", "mapSp", "ambient", "rpm", "iat", "coolant", "oil", "knockAvg", "knock1", "knock2", "knock3", "knock4",
     "timing", "wastegate", "put", "afr", "lambda", "stft", "ltft", "fpDi", "fpMpi", "pedal", "battery", "ecuSpeed", "gear", "torque", "clutchSlip", "clutchLoad", "misfires", "turbo",
+    "boostDev", "putSp", "lambdaSp", "lambdaDev", "torqueReq", "fpDiSp", "fpDiDev", "fpMpiSp", "fpMpiDev", "lpfpDuty",
     "hxLock", "hxLockTarget", "hxClutchTemp", "hxModuleTemp", "hxVolts"];
   var TILE_H = 72, TILE_MIN_W = 140;
   var PERF_KEYS = ["rpm", "iat", "knockAvg", "timing", "wastegate", "lambda", "clutchSlip", "clutchLoad", "hxLock", "hxClutchTemp", "ltft", "battery"];

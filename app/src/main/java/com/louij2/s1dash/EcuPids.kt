@@ -44,7 +44,48 @@ object EcuPids {
         Pid("battery", 0x14A6, 1, false, false) { it * 0.1015625 },          // V
         Pid("misfires", 0x2904, 2, false, false) { it },
         Pid("turbo", 0x1040, 2, false, false) { it / 163.84 },               // krpm
+        // Targets, to set against the actual values above. Unproven on SC8H65 until a drive (#909).
+        Pid("putSp", 0x2029, 2, false, false) { it / 10.0 },                 // kPa
+        Pid("lambdaSp", 0xF444, 2, false, false) { it / 32768.0 },           // lambda (SimosTools: x / 2229.1 = AFR)
+        Pid("torqueReq", 0x4380, 2, true, false) { it / 10.0 },              // Nm, same scaling as 0x437C
+        Pid("fpDiSp", 0x293B, 2, false, false) { it / 10.0 },                // bar
+        Pid("fpMpiSp", 0x2932, 2, false, false) { it / 1000.0 },             // bar
+        Pid("lpfpDuty", 0x2028, 2, false, false) { it / 100.0 },             // %
+        Pid("cruise", 0x203C, 2, false, false) { it },                       // raw; SimosTools starts logging on it
     )
+
+    /** SimosTools asks for up to 8 DIDs (16 bytes) in one ReadDataByIdentifier. */
+    const val MAX_PER_REQUEST = 8
+
+    fun request(pids: List<Pid>): ByteArray {
+        val out = ByteArray(1 + pids.size * 2)
+        out[0] = 0x22
+        pids.forEachIndexed { i, p ->
+            out[1 + i * 2] = (p.did shr 8).toByte()
+            out[2 + i * 2] = p.did.toByte()
+        }
+        return out
+    }
+
+    /**
+     * Splits a multi-DID reply: 0x62, then each DID followed by its value. The ECU may
+     * leave out a DID it doesn't support, so walk the reply by DID rather than by
+     * position. Returns null if it isn't a positive reply or doesn't line up.
+     */
+    fun decodeMulti(pids: List<Pid>, r: ByteArray): Map<String, Double?>? {
+        if (r.isEmpty() || r[0] != 0x62.toByte()) return null
+        val byDid = pids.associateBy { it.did }
+        val out = LinkedHashMap<String, Double?>()
+        var i = 1
+        while (i + 2 <= r.size) {
+            val did = ((r[i].toInt() and 0xFF) shl 8) or (r[i + 1].toInt() and 0xFF)
+            val p = byDid[did] ?: return null
+            if (i + 2 + p.len > r.size) return null
+            out[p.key] = decode(p, r, i + 2)
+            i += 2 + p.len
+        }
+        return if (i == r.size && out.isNotEmpty()) out else null
+    }
 
     /** Decode the value bytes of one DID. */
     fun decode(p: Pid, b: ByteArray, off: Int): Double? {

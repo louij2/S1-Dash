@@ -202,6 +202,7 @@ object DataHub {
         "knock1", "knock2", "knock3", "knock4", "timing", "wastegate", "put", "lambda", "afr", "stft", "ltft",
         "fpDi", "fpMpi", "pedal", "throttle", "speed", "ecuSpeed", "gear", "torque",
         "clutchSlip", "clutchLoad", "clutchWarn", "battery",
+        "putSp", "lambdaSp", "torqueReq", "fpDiSp", "fpMpiSp", "lpfpDuty", "cruise", "boostDev", "lambdaDev", "fpDiDev", "fpMpiDev",
         "hxMode", "hxLock", "hxLockTarget", "hxClutchTemp", "hxModuleTemp", "hxVolts", "hxTempProt",
     )
 
