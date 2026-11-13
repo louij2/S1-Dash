@@ -1,16 +1,28 @@
 import SwiftUI
 import WebKit
 
-/// The dash screens are the Android app's web UI. With no native bridge yet,
-/// the UI's built-in demo data runs, so this build shows made-up readings.
+/// The dash screens are the Android app's web UI. Bridge.swift gives them the same
+/// `window.S1` bridge as Android, fed by OpenHaldex over Wi-Fi (or the demo data).
 @main
 struct S1DashApp: App {
+    @Environment(\.scenePhase) private var phase
+
     var body: some Scene {
         WindowGroup {
             DashView()
                 .background(Color.black)
                 .statusBarHidden(true)
                 .persistentSystemOverlays(.hidden)
+        }
+        .onChange(of: phase) { p in
+            // Read the car only while the dash is on screen, and keep the screen on meanwhile.
+            if p == .active {
+                Hub.shared.acquireSources("screen")
+                UIApplication.shared.isIdleTimerDisabled = true
+            } else if p == .background {
+                Hub.shared.releaseSources("screen")
+                UIApplication.shared.isIdleTimerDisabled = false
+            }
         }
     }
 }
@@ -22,10 +34,11 @@ struct DashView: UIViewRepresentable {
         let config = WKWebViewConfiguration()
         // Script errors and a layout check go to the app's log, since there's no console on the phone.
         config.userContentController.add(context.coordinator, name: "log")
-        config.userContentController.addUserScript(WKUserScript(source: """
-            window.onerror = function (m, s, l) { window.webkit.messageHandlers.log.postMessage("error: " + m + " at " + s + ":" + l); };
-            """, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        config.userContentController.add(context.coordinator.bridge, name: "s1")
+        context.coordinator.bridge.install(on: config.userContentController)
+        Hub.shared.acquireSources("screen")
         let web = WKWebView(frame: .zero, configuration: config)
+        context.coordinator.bridge.web = web
         web.navigationDelegate = context.coordinator
         web.isOpaque = false
         web.backgroundColor = .black
@@ -37,14 +50,23 @@ struct DashView: UIViewRepresentable {
         } else {
             print("S1Dash: ui folder missing from the app")
         }
+        context.coordinator.bridge.startPushing()
         return web
     }
 
     func updateUIView(_ uiView: WKWebView, context: Context) {}
 
     final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+        let bridge = Bridge()
+
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
             print("S1Dash: \(message.body)")
+        }
+
+        /// Fresh settings and readings go into the page before each load, since the UI reads them at start.
+        func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            if action.targetFrame?.isMainFrame != false { bridge.install(on: webView.configuration.userContentController) }
+            decisionHandler(.allow)
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

@@ -1,7 +1,7 @@
 import Foundation
 
-/// Made-up readings for the CarPlay screen until the app reads OpenHaldex and the
-/// ECU itself. Same idea as the Android app's DemoSource: a pull every ~12 s.
+/// What the CarPlay screen shows, read from the same Hub as the phone screen
+/// (OpenHaldex over Wi-Fi, or the demo data when Settings › Demo is on).
 final class DashData {
     static let shared = DashData()
     static let modes = ["Stock", "FWD", "50 : 50", "60 : 40", "75 : 25", "Expert"]
@@ -11,20 +11,26 @@ final class DashData {
         let value: String
     }
 
-    var mode = 2
-    private let start = Date()
+    var mode: Int? { Hub.shared.get("hxMode").map { Int($0) } }
+
+    func setMode(_ m: Int) { Hub.shared.setMode(m) }
+
+    var source: String {
+        Hub.shared.setting("demo") == "1" ? "Demo data" : "OpenHaldex"
+    }
 
     func readings() -> [Reading] {
-        let t = Date().timeIntervalSince(start)
-        let pull = max(0, sin(t * 0.5))
-        let boost = pull * 1.78 - 0.55 * (1 - pull)
+        let hub = Hub.shared
+        func f(_ key: String, _ format: String) -> String {
+            hub.get(key).map { String(format: format, $0) } ?? "--"
+        }
         return [
-            Reading(label: "Boost", value: String(format: "%.2f bar", boost)),
-            Reading(label: "Oil", value: String(format: "%.0f °C", min(104, 62 + t * 0.25))),
-            Reading(label: "Coolant", value: String(format: "%.0f °C", min(90, 70 + t * 0.4))),
-            Reading(label: "Haldex clutch", value: String(format: "%.0f °C", min(70, 30 + t * 0.15 + pull * 6))),
-            Reading(label: "Haldex lock", value: String(format: "%.0f %%", 30 + pull * 60)),
-            Reading(label: "Engine", value: String(format: "%.0f rpm", 1500 + pull * 4800)),
+            Reading(label: "Boost", value: f("boost", "%.2f bar")),
+            Reading(label: "Oil", value: f("oil", "%.0f °C")),
+            Reading(label: "Coolant", value: f("coolant", "%.0f °C")),
+            Reading(label: "Haldex clutch", value: f("hxClutchTemp", "%.0f °C")),
+            Reading(label: "Haldex lock", value: f("hxLock", "%.0f %%")),
+            Reading(label: "Engine", value: hub.get("rpm") != nil ? f("rpm", "%.0f rpm") : f("ohRpm", "%.0f rpm")),
         ]
     }
 }

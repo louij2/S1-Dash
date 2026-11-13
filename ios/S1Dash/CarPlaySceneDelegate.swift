@@ -12,6 +12,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
 
     func templateApplicationScene(_ scene: CPTemplateApplicationScene, didConnect interfaceController: CPInterfaceController) {
         self.interfaceController = interfaceController
+        Hub.shared.acquireSources("carplay")
         live.tabTitle = "Live"
         live.tabImage = UIImage(systemName: "gauge.with.dots.needle.67percent")
         awd.tabTitle = "AWD"
@@ -26,17 +27,18 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         timer?.invalidate()
         timer = nil
         self.interfaceController = nil
+        Hub.shared.releaseSources("carplay")
         print("S1Dash: CarPlay disconnected")
     }
 
     private func refresh() {
         let data = DashData.shared
         let rows = data.readings().map { CPListItem(text: $0.label, detailText: $0.value) }
-        live.updateSections([CPListSection(items: rows, header: "Demo data", sectionIndexTitle: nil)])
+        live.updateSections([CPListSection(items: rows, header: data.source, sectionIndexTitle: nil)])
         let modes = DashData.modes.enumerated().map { index, name -> CPListItem in
             let item = CPListItem(text: name, detailText: index == data.mode ? "Active" : nil)
             item.handler = { [weak self] _, done in
-                data.mode = index
+                data.setMode(index)
                 self?.refresh()
                 done()
             }
