@@ -1,6 +1,6 @@
 name: Release
 
-# Every merge that changes the app publishes a signed APK. Docs-only merges don't.
+# Every merge that changes the Android app publishes a signed APK. Docs-only and iPhone-only merges don't.
 on:
   push:
     branches: [main]
@@ -8,6 +8,7 @@ on:
       - "docs/**"
       - "**.md"
       - "LICENSE"
+      - "ios/**"
   workflow_dispatch:
 
 # One at a time, so two quick merges can't pick the same version.
