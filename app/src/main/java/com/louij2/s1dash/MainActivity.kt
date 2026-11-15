@@ -50,6 +50,16 @@ class MainActivity : Activity() {
         DataHub.acquireSources(OWNER)
     }
 
+    override fun onStart() {
+        super.onStart()
+        DataHub.screenShown()
+    }
+
+    override fun onStop() {
+        DataHub.screenHidden(OWNER)
+        super.onStop()
+    }
+
     override fun onResume() {
         super.onResume()
         hideSystemBars()
