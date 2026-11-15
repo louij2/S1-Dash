@@ -30,7 +30,12 @@ class OpenHaldexSource(private val ctx: Context, private val host: String) {
         thread?.interrupt()
     }
 
-    fun setMode(mode: Int) = commands.offer { post("/api/mode", JSONObject().put("mode", mode).toString()) }
+    fun setMode(mode: Int) = commands.offer {
+        post("/api/mode", JSONObject().put("mode", mode).toString())
+        lastSettings = 0L // re-read the flags that can make the controller ignore it
+    }
+
+    @Volatile private var lastSettings = 0L
 
     fun readDtcs() = commands.offer { dtcJob(false) }
 
@@ -55,6 +60,11 @@ class OpenHaldexSource(private val ctx: Context, private val host: String) {
                 fails = 0
                 DataHub.status["oh"] = "connected"
                 parse(JSONObject(body))
+                // Flags that make OpenHaldex ignore mode requests, on connect and every 30 s.
+                if (System.currentTimeMillis() - lastSettings > 30_000L) {
+                    lastSettings = System.currentTimeMillis()
+                    get("/api/settings")?.let { readSettings(JSONObject(it)) }
+                }
                 // Haldex fault codes on connect and every 5 minutes.
                 if (System.currentTimeMillis() - lastDtc > 5 * 60_000L) {
                     lastDtc = System.currentTimeMillis()
@@ -92,6 +102,13 @@ class OpenHaldexSource(private val ctx: Context, private val host: String) {
             DataHub.put("hxClutchCurrent", num(u, "clutchCurrent"))
         }
         DataHub.status["ohDiagTool"] = if (o.optBoolean("diagToolActive")) "1" else "0"
+    }
+
+    /** With Disable controller on, OpenHaldex ignores every mode request (its own button still works);
+     *  in standalone mode it turns Stock into "keep the last mode". The UI explains a tap that didn't take. */
+    private fun readSettings(o: JSONObject) {
+        DataHub.status["ohDisabled"] = if (o.optBoolean("disableController")) "1" else "0"
+        DataHub.status["ohStandalone"] = if (o.optBoolean("isStandalone")) "1" else "0"
     }
 
     /** Runs a Haldex DTC read (or clear) job on the controller and waits for the result. */

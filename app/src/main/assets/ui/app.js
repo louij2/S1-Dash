@@ -377,9 +377,14 @@
   function buildModes() {
     var h = "";
     MODES.forEach(function (m, i) { h += '<div class="row" data-mode="' + i + '"><span class="radio"></span>' + m + (i === 5 ? '<span class="sub">map from OpenHaldex</span>' : "") + "</div>"; });
+    h += '<div class="row alert" id="a-modenote" style="display:none"></div>';
     $("modes").innerHTML = h;
     var rows = $("modes").children;
-    for (var i = 0; i < rows.length; i++) rows[i].onclick = function () { B.setMode(parseInt(this.getAttribute("data-mode"), 10)); };
+    for (var i = 0; i < rows.length; i++) rows[i].onclick = function () {
+      var m = parseInt(this.getAttribute("data-mode"), 10);
+      modePending = { mode: m, t: Date.now() };
+      B.setMode(m);
+    };
   }
 
   function dtcTotal() {
@@ -442,9 +447,26 @@
     if ($("perf-stats").className.indexOf("on") >= 0) updateTiles("perf-tiles");
   }
 
+  // OpenHaldex never answers POST /api/mode, so the only sign a tap worked is the mode it reports next.
+  var modePending = null;
+  function modeNote() {
+    if (snap.s.oh === "demo") { modePending = null; return ""; }
+    if (snap.s.ohDisabled === "1") return "OpenHaldex has Disable controller on in its settings, so it ignores modes from here. Its own button still works.";
+    if (!modePending) return "";
+    var age = Date.now() - modePending.t;
+    if (snap.v.hxMode === modePending.mode || age > 10000) { modePending = null; return ""; }
+    if (age < 2500) return "";
+    if (modePending.mode === 0 && snap.s.ohStandalone === "1") return "OpenHaldex is in standalone mode, where Stock isn't a mode: it keeps the last one.";
+    if (snap.s.oh !== "connected") return "Not connected to OpenHaldex (" + (snap.s.oh || "--") + "). Is this device on its Wi-Fi?";
+    return "OpenHaldex didn't take " + MODES[modePending.mode] + ".";
+  }
+
   function renderAwd() {
     var v = snap.v, rows = $("modes").children;
-    for (var i = 0; i < rows.length; i++) {
+    var note = modeNote(), el = $("a-modenote");
+    el.textContent = note;
+    el.style.display = note ? "" : "none";
+    for (var i = 0; i < MODES.length; i++) {
       var on = v.hxMode === i;
       rows[i].className = "row" + (on ? " sel" : "");
       rows[i].firstChild.className = "radio" + (on ? " on" : "");
