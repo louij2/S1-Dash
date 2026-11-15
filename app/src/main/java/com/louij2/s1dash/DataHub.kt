@@ -174,6 +174,10 @@ object DataHub {
         if (setting("ohEnabled") == "1") {
             openHaldex = OpenHaldexSource(appContext, setting("ohHost")).also { it.start() }
         } else status["oh"] = "off"
+        startEcu()
+    }
+
+    private fun startEcu() {
         val adapter = setting("ecuAdapter")
         if (CalFlash.holdsDongle()) {
             status["ecu"] = "paused for flash"
@@ -186,6 +190,31 @@ object DataHub {
         openHaldex?.stop(); openHaldex = null
         ecu?.stop(); ecu = null
         demo?.stop(); demo = null
+        ecuReleased = false
+    }
+
+    @Volatile private var ecuReleased = false
+
+    /**
+     * The phone screen went out of sight. The SimosTools bridge takes one connection, so let go of
+     * the dongle for SimosTools (#967), unless Android Auto is showing the data or the logger is running.
+     */
+    @Synchronized
+    fun screenHidden(owner: String) {
+        if (sourceOwners != setOf(owner) || Logger.active || ecu == null) return
+        ecu?.stop(); ecu = null
+        ecuReleased = true
+        dropEcuValues()
+        status.remove("simos")
+        status["ecu"] = "released while S1 Dash is in the background"
+    }
+
+    /** Back on screen: take the dongle again if it was let go in [screenHidden]. */
+    @Synchronized
+    fun screenShown() {
+        if (!ecuReleased) return
+        ecuReleased = false
+        startEcu()
     }
 
     fun restartSources() {

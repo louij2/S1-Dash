@@ -36,6 +36,14 @@ class EcuPoller(
     /** Whether this ECU takes several DIDs per request; cleared after repeated refusals. */
     private var multiOk = true
     private var multiFails = 0
+    private val backoff = Backoff()
+
+    /** Lets go of the dongle and waits longer each time it fails again, so SimosTools can get in. */
+    private fun waitAfterFailure(what: String) {
+        val ms = backoff.next()
+        DataHub.status["ecu"] = "$what, retrying in ${ms / 1000} s"
+        Thread.sleep(ms)
+    }
 
     fun start() {
         running = true
@@ -87,8 +95,7 @@ class EcuPoller(
                     t = if (adapter == "bridge") IsoTpBleTransport(ctx, mac, bridgeName) else ElmSppTransport(ctx, mac)
                     if (!t.open()) {
                         t.close()
-                        DataHub.status["ecu"] = t.lastError.ifEmpty { "no adapter" }
-                        Thread.sleep(5000)
+                        waitAfterFailure(t.lastError.ifEmpty { "no adapter" })
                         continue
                     }
                     transport = t
@@ -110,12 +117,12 @@ class EcuPoller(
                     if (ok) EcuPids.ALL.filter { it.key in keys && it.key != "rpm" }.forEach { readPid(t, it) }
                     guard.feedRpm(if (ok) DataHub.get("rpm") else null)
                     if (!ok) {
-                        DataHub.status["ecu"] = "no ECU reply"
                         DataHub.dropEcuValues()
                         t.close(); transport = null
-                        Thread.sleep(2000)
+                        waitAfterFailure("no ECU reply")
                         continue
                     }
+                    backoff.reset()
                     DataHub.status["ecu"] = if (guard.warm) "connected (${t.label})" else "connected (${t.label}), waiting for the engine"
                     DataHub.status.remove("ecuRate")
                     if (!guard.warm) Thread.sleep(PollGuard.PROBE_EVERY_MS)
@@ -133,12 +140,12 @@ class EcuPoller(
                 derive()
                 if (readNow.containsAll(DataHub.CLUTCH_INPUTS)) DataHub.feedClutch(DataHub.clutch)
                 if (answered == 0) {
-                    DataHub.status["ecu"] = "no ECU reply"
                     DataHub.dropEcuValues()
                     t.close(); transport = null
-                    Thread.sleep(2000)
+                    waitAfterFailure("no ECU reply")
                     continue
                 }
+                backoff.reset()
                 if (System.currentTimeMillis() - lastDtcCount > 30_000L) {
                     lastDtcCount = System.currentTimeMillis()
                     readDtcCount(t)
@@ -146,10 +153,9 @@ class EcuPoller(
             } catch (_: InterruptedException) {
                 break
             } catch (e: Exception) {
-                DataHub.status["ecu"] = "error: ${e.javaClass.simpleName}"
                 DataHub.dropEcuValues()
                 transport?.close(); transport = null
-                try { Thread.sleep(3000) } catch (_: InterruptedException) { break }
+                try { waitAfterFailure("error: ${e.javaClass.simpleName}") } catch (_: InterruptedException) { break }
             }
         }
         transport?.close()
