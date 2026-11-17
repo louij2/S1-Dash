@@ -4,15 +4,17 @@ import Foundation
 /// Android OpenHaldexSource. OpenHaldex stays the only thing that controls the Haldex;
 /// mode changes are requests to it (POST /api/mode).
 final class OpenHaldexSource {
-    private let host: String
+    private let address: OhAddress
+    private var finder: OhFinder?
+    private var host: String { address.host }
     private let session: URLSession
     private var thread: Thread?
     private let lock = NSLock()
     private var commands: [() -> Void] = []
     private let wake = DispatchSemaphore(value: 0)
 
-    init(host: String) {
-        self.host = host
+    init(host setting: String) {
+        address = OhAddress(setting: setting)
         let cfg = URLSessionConfiguration.ephemeral
         cfg.timeoutIntervalForRequest = 1.5
         cfg.timeoutIntervalForResource = 3
@@ -24,13 +26,24 @@ final class OpenHaldexSource {
     }
 
     func start() {
+        if address.auto {
+            finder = OhFinder { [weak self] found in
+                self?.address.found(found)
+                self?.showAddress()
+            }
+            finder?.search()
+        }
+        showAddress()
         let t = Thread { [weak self] in self?.loop() }
         t.name = "openhaldex"
         thread = t
         t.start()
     }
 
+    private func showAddress() { Hub.shared.setStatus("ohAt", address.shown) }
+
     func stop() {
+        finder?.stop()
         thread?.cancel()
         wake.signal()
         session.invalidateAndCancel()
@@ -74,10 +87,15 @@ final class OpenHaldexSource {
                   let o = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] else {
                 fails += 1
                 if fails >= 3 { hub.setStatus("oh", "no reply") }
+                if address.failed() { // moved (bridge mode on a hotspot)? look for it by name
+                    showAddress()
+                    finder?.search()
+                }
                 _ = wake.wait(timeout: .now() + 1)
                 continue
             }
             fails = 0
+            address.answered()
             hub.setStatus("oh", "connected")
             parse(o)
             // Flags that make OpenHaldex ignore mode requests, on connect and every 30 s.

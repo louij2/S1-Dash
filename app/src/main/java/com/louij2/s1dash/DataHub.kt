@@ -41,7 +41,7 @@ object DataHub {
     val DEFAULTS = mapOf(
         "theme" to "s1",              // s1 | quattro | mmi
         "ohEnabled" to "1",
-        "ohHost" to "192.168.1.1",    // OpenHaldex access point address
+        "ohHost" to "auto",           // auto = find OpenHaldex by name (#992); or a typed address
         "ecuAdapter" to "none",       // none | bridge (SimosTools dongle) | elm (ELM327, e.g. the wheel's dongle)
         "ecuMac" to "",               // adapter MAC; for the bridge, empty = find it by name
         "bridgeName" to "BLE_TO_ISOTP20",

@@ -10,7 +10,7 @@ final class Hub {
     static let defaults: [String: String] = [
         "theme": "s1",              // s1 | quattro | mmi
         "ohEnabled": "1",
-        "ohHost": "192.168.1.1",    // OpenHaldex access point address
+        "ohHost": "auto",           // auto = find OpenHaldex by name (#992); or a typed address
         "ecuAdapter": "none",       // only "none" works on iPhone so far
         "ecuMac": "",
         "bridgeName": "BLE_TO_ISOTP20",
