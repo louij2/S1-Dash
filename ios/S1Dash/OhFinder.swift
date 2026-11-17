@@ -1,5 +1,4 @@
 import Foundation
-import Network
 
 /// Which address to poll OpenHaldex at (#992), like the Android OhAddress. With "auto",
 /// OpenHaldex is found by name: the firmware advertises "openhaldex" (_http._tcp) on its own AP
@@ -50,71 +49,58 @@ final class OhAddress {
     }
 }
 
-/// Browses Bonjour for the "openhaldex" HTTP service and resolves it to an IPv4 host:port.
-final class OhFinder {
-    private let queue = DispatchQueue(label: "ohfinder")
-    private var browser: NWBrowser?
-    private var resolving: NWConnection?
+/// Browses Bonjour for the "openhaldex" HTTP service and resolves it to its host name and port
+/// (openhaldex.local). URLSession looks the .local name up itself, over IPv4 or IPv6.
+/// NetService rather than Network.framework: its resolve gives the name without opening a
+/// connection, which is all a URL needs. Runs on the main run loop.
+final class OhFinder: NSObject, NetServiceBrowserDelegate, NetServiceDelegate {
+    private var browser: NetServiceBrowser?
+    private var service: NetService?
     private let onFound: (String) -> Void
 
     init(onFound: @escaping (String) -> Void) { self.onFound = onFound }
 
     func search() {
-        queue.async { [weak self] in
+        DispatchQueue.main.async { [weak self] in
             guard let self = self, self.browser == nil else { return }
-            let b = NWBrowser(for: .bonjour(type: "_http._tcp", domain: nil), using: .tcp)
-            b.browseResultsChangedHandler = { [weak self] results, _ in
-                print("S1Dash: Bonjour sees \(results.map { "\($0.endpoint)" })")
-                for r in results {
-                    if case let .service(name, _, _, _) = r.endpoint, OhAddress.isOpenHaldex(name) {
-                        self?.resolve(r.endpoint)
-                        return
-                    }
-                }
-            }
-            b.stateUpdateHandler = { [weak self] state in
-                print("S1Dash: looking for OpenHaldex: \(state)")
-                if case .failed = state { self?.stopOnQueue() }
-            }
+            let b = NetServiceBrowser()
+            b.delegate = self
             self.browser = b
-            b.start(queue: self.queue)
+            print("S1Dash: looking for OpenHaldex")
+            b.searchForServices(ofType: "_http._tcp.", inDomain: "local.")
         }
     }
 
-    func stop() { queue.async { [weak self] in self?.stopOnQueue() } }
+    func stop() { DispatchQueue.main.async { [weak self] in self?.stopNow() } }
 
-    private func stopOnQueue() {
-        browser?.cancel(); browser = nil
-        resolving?.cancel(); resolving = nil
+    private func stopNow() {
+        browser?.stop(); browser = nil
+        service?.stop(); service = nil
     }
 
-    /// Connecting is how Network.framework resolves a Bonjour service; IPv4 only, for a plain URL.
-    private func resolve(_ endpoint: NWEndpoint) {
-        guard resolving == nil else { return }
-        let params = NWParameters.tcp
-        if let ip = params.defaultProtocolStack.internetProtocol as? NWProtocolIP.Options { ip.version = .v4 }
-        let c = NWConnection(to: endpoint, using: params)
-        resolving = c
-        c.stateUpdateHandler = { [weak self] state in
-            switch state {
-            case .ready:
-                if case let .hostPort(host, port)? = c.currentPath?.remoteEndpoint, case let .ipv4(addr) = host {
-                    let ip = "\(addr)".components(separatedBy: "%")[0]
-                    print("S1Dash: found OpenHaldex at \(ip):\(port.rawValue)")
-                    self?.onFound(port.rawValue == 80 ? ip : "\(ip):\(port.rawValue)")
-                    self?.stopOnQueue() // found it; search again only if it stops answering
-                } else {
-                    print("S1Dash: OpenHaldex resolved to \(String(describing: c.currentPath?.remoteEndpoint)), not IPv4")
-                    c.cancel(); self?.resolving = nil
-                }
-            case .failed(let e):
-                print("S1Dash: couldn't reach the OpenHaldex service: \(e)")
-                if self?.resolving === c { self?.resolving = nil }
-            case .cancelled:
-                if self?.resolving === c { self?.resolving = nil }
-            default: break
-            }
-        }
-        c.start(queue: queue)
+    func netServiceBrowser(_ b: NetServiceBrowser, didFind s: NetService, moreComing: Bool) {
+        guard service == nil, OhAddress.isOpenHaldex(s.name) else { return }
+        service = s
+        s.delegate = self
+        s.resolve(withTimeout: 5)
+    }
+
+    func netServiceBrowser(_ b: NetServiceBrowser, didNotSearch errorDict: [String: NSNumber]) {
+        print("S1Dash: couldn't look for OpenHaldex: \(errorDict)")
+        browser = nil
+    }
+
+    func netServiceDidResolveAddress(_ s: NetService) {
+        guard let name = s.hostName, s.port > 0 else { return }
+        let host = name.hasSuffix(".") ? String(name.dropLast()) : name
+        let found = s.port == 80 ? host : "\(host):\(s.port)"
+        print("S1Dash: found OpenHaldex at \(found)")
+        onFound(found)
+        stopNow() // found it; search again only if it stops answering
+    }
+
+    func netService(_ s: NetService, didNotResolve errorDict: [String: NSNumber]) {
+        print("S1Dash: couldn't resolve OpenHaldex: \(errorDict)")
+        service = nil
     }
 }
