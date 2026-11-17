@@ -14,6 +14,7 @@
     <div class="hdr"><div class="title">Car</div><div class="status"><span class="dtc" data-go="faults"></span><span class="amb"></span><b class="clock"></b></div></div>
     <div class="list">
       <div class="row" data-go="perf">Performance<span class="chev" style="margin-left:auto">›</span></div>
+      <div class="row" data-go="sport">Sport+<span class="val">g-force, power</span><span class="chev">›</span></div>
       <div class="row" data-go="awd">All-wheel drive<span class="val" id="m-mode"></span><span class="chev">›</span></div>
       <div class="row" data-go="engine">Engine data<span class="chev" style="margin-left:auto">›</span></div>
       <div class="row" data-go="faults">Fault memory<span class="val" id="m-dtc"></span><span class="chev">›</span></div>
@@ -59,6 +60,26 @@
     <div class="sk bl" data-go="menu">Menu</div>
     <div class="sk bm" data-go="awd">All-wheel drive</div>
     <div class="sk br" data-go="engine">Engine data</div>
+  </section>
+
+  <!-- Sport+: g-force circle and the numbers that matter on a fast road -->
+  <section class="screen" id="sport">
+    <div class="hdr"><div class="title"><span>Car ›</span> Sport+</div><div class="status"><span class="dtc" data-go="faults"></span><span class="amb"></span><b class="clock"></b></div></div>
+    <div class="sp" id="sp">
+      <div class="gwrap"><svg id="gsvg" width="360" height="360" viewBox="-180 -180 360 360"></svg><div class="gnote" id="g-note"></div></div>
+      <div class="gside">
+        <div class="gnow"><div><span>Lateral</span><b id="g-lat">--</b></div><div><span id="g-lonl">Long.</span><b id="g-lon">--</b></div></div>
+        <h4>Peaks<span class="btn" id="g-reset">Reset</span></h4>
+        <div class="gpk"><div><span>Left</span><b id="pk-l">--</b></div><div><span>Right</span><b id="pk-r">--</b></div>
+          <div><span>Braking</span><b id="pk-b">--</b></div><div><span>Accel.</span><b id="pk-a">--</b></div></div>
+        <div class="kv"><span>Power (ECU est.)</span><b id="sp-pow">--</b></div>
+        <div class="kv"><span>Boost</span><b id="sp-boost">--</b></div>
+        <div class="kv"><span>Oil</span><b id="sp-oil">--</b></div>
+        <div class="kv"><span>Haldex lock</span><b id="sp-lock">--</b></div>
+      </div>
+    </div>
+    <div class="sk bl" data-back>Back</div>
+    <div class="sk br" data-go="perf">Performance</div>
   </section>
 
   <!-- All-wheel drive -->

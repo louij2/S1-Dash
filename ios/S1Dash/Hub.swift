@@ -34,6 +34,7 @@ final class Hub {
 
     private var openHaldex: OpenHaldexSource?
     private var demo: DemoSource?
+    private var motion: GMotion?
     private var owners = Set<String>()
 
     // MARK: settings
@@ -131,7 +132,12 @@ final class Hub {
             demo?.start()
             setStatus("oh", "demo")
             setStatus("ecu", "demo")
+            setStatus("g", "demo")
             return
+        }
+        DispatchQueue.main.async { [weak self] in
+            self?.motion = GMotion()
+            self?.motion?.start()
         }
         if setting("ohEnabled") == "1" {
             openHaldex = OpenHaldexSource(host: setting("ohHost"))
@@ -146,6 +152,9 @@ final class Hub {
     private func stopSources() {
         openHaldex?.stop(); openHaldex = nil
         demo?.stop(); demo = nil
+        let m = motion
+        motion = nil
+        DispatchQueue.main.async { m?.stop() }
         lock.lock()
         values.removeAll(); stamps.removeAll(); status.removeAll()
         lock.unlock()
@@ -180,6 +189,7 @@ final class Logger {
         "clutchSlip", "clutchLoad", "clutchWarn", "battery",
         "putSp", "lambdaSp", "torqueReq", "fpDiSp", "fpMpiSp", "lpfpDuty", "cruise", "boostDev", "lambdaDev", "fpDiDev", "fpMpiDev",
         "hxMode", "hxLock", "hxLockTarget", "hxClutchTemp", "hxModuleTemp", "hxVolts", "hxTempProt",
+        "gLat", "gLon",
     ]
 
     private(set) var active = false

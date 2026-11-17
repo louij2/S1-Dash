@@ -169,3 +169,29 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 .modal .actions { display: flex; justify-content: flex-end; }
 .modal .actions div { margin-left: 12px; padding: 8px 22px; border: 1px solid var(--line); border-radius: 3px; font-size: 21px; }
 .modal .actions div.go { border-color: var(--red); background: linear-gradient(180deg, #8a0c1c, var(--red-dark)); }
+
+/* Sport+ */
+.sp { position: absolute; left: 0; top: 64px; width: 800px; height: 370px; }
+.gwrap { position: absolute; left: 24px; top: 0; width: 360px; height: 360px; }
+.gnote { position: absolute; left: 0; right: 0; top: 150px; text-align: center; color: var(--amber); font-size: 19px; padding: 0 50px; }
+#gsvg .ring { fill: none; stroke: var(--line); stroke-width: 1.5; }
+#gsvg .ring.one { stroke: var(--text-faint); stroke-width: 2; }
+#gsvg .axis { stroke: var(--line); stroke-width: 1; }
+#gsvg text { fill: var(--text-dim); font-size: 13px; }
+#gsvg .trail { fill: none; stroke: var(--red); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; opacity: .45; }
+#gsvg .dot { fill: var(--red); stroke: #fff; stroke-width: 2; }
+#gsvg .peak { fill: none; stroke: var(--amber); stroke-width: 2.5; }
+.gside { position: absolute; left: 420px; right: 28px; top: 0; }
+.gside h4 { margin: 14px 0 4px; font-weight: 400; color: var(--text-dim); font-size: 17px; letter-spacing: .04em; text-transform: uppercase; display: flex; align-items: center; }
+.gside h4 .btn { margin-left: auto; text-transform: none; letter-spacing: 0; padding: 2px 14px; border: 1px solid var(--line); border-radius: 3px; font-size: 17px; color: var(--text); }
+.gside h4 .btn:active { border-color: var(--red); background: var(--red-dark); }
+.gnow, .gpk { display: grid; grid-template-columns: 1fr 1fr; column-gap: 18px; }
+.gnow div, .gpk div { display: flex; flex-direction: column; padding: 4px 0; border-bottom: 1px solid #1f2124; }
+.gnow span, .gpk span { color: var(--text-dim); font-size: 16px; }
+.gnow b { font-size: 40px; font-weight: 300; }
+.gpk b { font-size: 24px; font-weight: 400; }
+.gside .kv { font-size: 19px; padding: 5px 0; }
+.sp.tall { height: auto; }
+.sp.tall .gwrap { left: 100px; width: 600px; height: 600px; }
+.sp.tall .gnote { top: 260px; }
+.sp.tall .gside { position: absolute; left: 60px; right: 60px; top: 630px; }

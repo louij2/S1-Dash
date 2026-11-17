@@ -166,6 +166,7 @@ object DataHub {
 
     fun startSources() {
         if (setting("demo") == "1") {
+            status["g"] = "demo"
             demo = DemoSource().also { it.start() }
             status["oh"] = "demo"
             status["ecu"] = "demo"
@@ -174,8 +175,11 @@ object DataHub {
         if (setting("ohEnabled") == "1") {
             openHaldex = OpenHaldexSource(appContext, setting("ohHost")).also { it.start() }
         } else status["oh"] = "off"
+        gSensor = GSensor(appContext).also { it.start() }
         startEcu()
     }
+
+    private var gSensor: GSensor? = null
 
     private fun startEcu() {
         val adapter = setting("ecuAdapter")
@@ -190,6 +194,7 @@ object DataHub {
         openHaldex?.stop(); openHaldex = null
         ecu?.stop(); ecu = null
         demo?.stop(); demo = null
+        gSensor?.stop(); gSensor = null
         ecuReleased = false
     }
 
@@ -233,6 +238,7 @@ object DataHub {
         "clutchSlip", "clutchLoad", "clutchWarn", "battery",
         "putSp", "lambdaSp", "torqueReq", "fpDiSp", "fpMpiSp", "lpfpDuty", "cruise", "boostDev", "lambdaDev", "fpDiDev", "fpMpiDev",
         "hxMode", "hxLock", "hxLockTarget", "hxClutchTemp", "hxModuleTemp", "hxVolts", "hxTempProt",
+        "gLat", "gLon",
     )
 
     object Logger {
