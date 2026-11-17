@@ -8,7 +8,7 @@
   var B = window.S1 || demoBridge();
 
   function demoBridge() {
-    var settings = { theme: "s1", ohEnabled: "1", ohHost: "192.168.1.1", ecuAdapter: "bridge", ecuMac: "",
+    var settings = { theme: "s1", ohEnabled: "1", ohHost: "auto", ecuAdapter: "bridge", ecuMac: "",
       bridgeName: "BLE_TO_ISOTP20", dtcIndicator: "1", boostTarget: "1.8", demo: "1", uiScale: "100" };
     try { var saved = JSON.parse(localStorage.getItem("s1demo") || "{}"); for (var k in saved) settings[k] = saved[k]; } catch (e) {}
     var q = location.search.replace("?", "").split("&");
@@ -686,7 +686,8 @@
     h += '<div class="row head">Clutch estimate (manual gearbox, no real sensor)</div>' +
       '<div class="row">Learned gears<span class="val">' + (gears.length ? gears.join(" ") : "none yet, cruise in each gear") + '</span><span class="btn" id="clutch-reset">Reset</span></div>';
     h += '<div class="row head">OpenHaldex (Haldex data and modes)</div>' + toggle("ohEnabled", "Use OpenHaldex", "over its Wi-Fi") +
-      '<div class="row">Address<input id="oh-host" value="' + settings.ohHost + '"></div>' +
+      '<div class="row">Address<span class="sub">auto finds it by name</span><input id="oh-host" value="' + esc(settings.ohHost) + '" placeholder="auto"></div>' +
+      '<div class="row dim">Using<span class="val" id="st-ohat">' + esc(s.ohAt || "--") + "</span></div>" +
       '<div class="row dim">Status<span class="val" id="st-oh">' + (s.oh || "--") + "</span></div>";
     h += '<div class="row head">Engine ECU (Simos18 live data, same set as SimosTools)</div>' +
       radio("ecuAdapter", "none", "None") + radio("ecuAdapter", "bridge", "SimosTools dongle", "BLE ISO-TP bridge") +
@@ -705,7 +706,7 @@
       if (k === "uiScale") layout();
       renderSettings();
     };
-    $("oh-host").onchange = function () { B.setSetting("ohHost", this.value.trim()); };
+    $("oh-host").onchange = function () { B.setSetting("ohHost", this.value.trim() || "auto"); };
     function stepBoost(d) {
       var x = Math.max(0.5, Math.min(1.9, Math.round(((parseFloat(settings.boostTarget) || 1.8) + d) * 100) / 100));
       B.setSetting("boostTarget", x.toFixed(2)); settings.boostTarget = x.toFixed(2); buildDials(); renderSettings();
@@ -765,6 +766,7 @@
     } else if (current === "settings") {
       // Only the status lines: rebuilding the list would drop focus from the address box.
       if ($("st-oh")) $("st-oh").textContent = snap.s.oh || "--";
+      if ($("st-ohat")) $("st-ohat").textContent = snap.s.ohAt || "--";
       if ($("st-ecu")) $("st-ecu").textContent = snap.s.ecu || "--";
       if ($("st-data")) $("st-data").textContent = dataNote() || "--";
     } else if (current === "logger" && snap.logging) {

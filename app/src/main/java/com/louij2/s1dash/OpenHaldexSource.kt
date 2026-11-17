@@ -1,9 +1,6 @@
 package com.louij2.s1dash
 
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.Network
-import android.net.NetworkCapabilities
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -15,19 +12,34 @@ import java.util.concurrent.TimeUnit
  * OpenHaldex stays the only thing that controls the Haldex; mode changes are
  * requests to it (POST /api/mode).
  */
-class OpenHaldexSource(private val ctx: Context, private val host: String) {
+class OpenHaldexSource(private val ctx: Context, setting: String) {
     @Volatile private var running = false
     private var thread: Thread? = null
     private val commands = LinkedBlockingQueue<() -> Unit>()
+    private val address = OhAddress(setting, DataHub.prefs.getString(LAST_FOUND, null)) {
+        DataHub.prefs.edit().putString(LAST_FOUND, it).apply()
+    }
+    private val finder = if (address.auto) OhFinder(ctx) { found ->
+        address.found(found)
+        showAddress()
+    } else null
+    private val host get() = address.host
 
     fun start() {
         running = true
+        showAddress()
+        finder?.search()
         thread = Thread({ loop() }, "openhaldex").apply { start() }
     }
 
     fun stop() {
         running = false
+        finder?.stop()
         thread?.interrupt()
+    }
+
+    private fun showAddress() {
+        DataHub.status["ohAt"] = "${address.host} (${address.source})"
     }
 
     fun setMode(mode: Int) = commands.offer {
@@ -54,10 +66,15 @@ class OpenHaldexSource(private val ctx: Context, private val host: String) {
                 if (body == null) {
                     fails++
                     if (fails >= 3) DataHub.status["oh"] = "no reply"
+                    if (address.failed()) { // moved (bridge mode on a hotspot)? look for it by name
+                        showAddress()
+                        finder?.search()
+                    }
                     sleep(1000)
                     continue
                 }
                 fails = 0
+                address.answered()
                 DataHub.status["oh"] = "connected"
                 parse(JSONObject(body))
                 // Flags that make OpenHaldex ignore mode requests, on connect and every 30 s.
@@ -128,16 +145,12 @@ class OpenHaldexSource(private val ctx: Context, private val host: String) {
         }
     }
 
-    /** The OpenHaldex AP has no internet; make sure requests go out over Wi-Fi. */
-    private fun wifiNetwork(): Network? {
-        val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        @Suppress("DEPRECATION")
-        return cm.allNetworks.firstOrNull { cm.getNetworkCapabilities(it)?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true }
-    }
-
     private fun open(path: String): HttpURLConnection {
-        val url = URL("http://$host$path")
-        val c = (wifiNetwork()?.openConnection(url) ?: url.openConnection()) as HttpURLConnection
+        val h = host
+        val url = URL("http://$h$path")
+        // The OpenHaldex AP has no internet, so bind to the network that holds its address rather
+        // than let requests go out over mobile data. None holds it on this device's own hotspot.
+        val c = (OhAddress.networkFor(ctx, h)?.openConnection(url) ?: url.openConnection()) as HttpURLConnection
         c.connectTimeout = 800
         c.readTimeout = 1500
         return c
@@ -158,4 +171,8 @@ class OpenHaldexSource(private val ctx: Context, private val host: String) {
     } catch (_: Exception) { null }
 
     private fun sleep(ms: Long) { try { Thread.sleep(ms) } catch (_: InterruptedException) { running = false } }
+
+    private companion object {
+        const val LAST_FOUND = "ohLastFound"
+    }
 }

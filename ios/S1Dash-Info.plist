@@ -23,7 +23,12 @@
 	</dict>
 	<!-- OpenHaldex's API is plain HTTP on its own Wi-Fi (192.168.1.1). -->
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>S1 Dash reads the OpenHaldex controller over its Wi-Fi.</string>
+	<string>S1 Dash finds and reads the OpenHaldex controller on the local Wi-Fi or hotspot.</string>
+	<!-- Finding OpenHaldex by name (Bonjour), #992. -->
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_http._tcp</string>
+	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
