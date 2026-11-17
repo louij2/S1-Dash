@@ -89,7 +89,7 @@
     var st = $("stage");
     st.style.width = W + "px"; st.style.height = H + "px";
     st.style.transform = "scale(" + scale + ")";
-    // Sport+: side by side, or on tall screens (a phone upright) a bigger circle above the numbers.
+    // RS mode: side by side, or on tall screens (a phone upright) a bigger circle above the numbers.
     var sp = $("sp"), tall = H >= 1000;
     sp.className = "sp" + (tall ? " tall" : "");
     sp.style.left = Math.max(0, Math.round((W - 800) / 2)) + "px";
@@ -489,7 +489,7 @@
     $("a-oh").textContent = snap.s.oh || "--";
   }
 
-  // Sport+: g-force circle. gLat + = pushed right (a left turn), gLon + = pushed forward (braking).
+  // RS mode: g-force circle. gLat + = pushed right (a left turn), gLon + = pushed forward (braking).
   // The dot shows the force the driver feels: up when braking, left in a right turn.
   var G_PX = 160 / 1.5, gTrail = [], gPeak = { l: 0, r: 0, b: 0, a: 0 };
   function buildSport() {

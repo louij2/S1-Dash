@@ -170,7 +170,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 .modal .actions div { margin-left: 12px; padding: 8px 22px; border: 1px solid var(--line); border-radius: 3px; font-size: 21px; }
 .modal .actions div.go { border-color: var(--red); background: linear-gradient(180deg, #8a0c1c, var(--red-dark)); }
 
-/* Sport+ */
+/* RS mode */
 .sp { position: absolute; left: 0; top: 64px; width: 800px; height: 370px; }
 .gwrap { position: absolute; left: 24px; top: 0; width: 360px; height: 360px; }
 .gnote { position: absolute; left: 0; right: 0; top: 150px; text-align: center; color: var(--amber); font-size: 19px; padding: 0 50px; }
