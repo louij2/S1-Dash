@@ -64,6 +64,7 @@ final class OhFinder {
             guard let self = self, self.browser == nil else { return }
             let b = NWBrowser(for: .bonjour(type: "_http._tcp", domain: nil), using: .tcp)
             b.browseResultsChangedHandler = { [weak self] results, _ in
+                print("S1Dash: Bonjour sees \(results.map { "\($0.endpoint)" })")
                 for r in results {
                     if case let .service(name, _, _, _) = r.endpoint, OhAddress.isOpenHaldex(name) {
                         self?.resolve(r.endpoint)
@@ -72,6 +73,7 @@ final class OhFinder {
                 }
             }
             b.stateUpdateHandler = { [weak self] state in
+                print("S1Dash: looking for OpenHaldex: \(state)")
                 if case .failed = state { self?.stopOnQueue() }
             }
             self.browser = b
@@ -98,12 +100,17 @@ final class OhFinder {
             case .ready:
                 if case let .hostPort(host, port)? = c.currentPath?.remoteEndpoint, case let .ipv4(addr) = host {
                     let ip = "\(addr)".components(separatedBy: "%")[0]
+                    print("S1Dash: found OpenHaldex at \(ip):\(port.rawValue)")
                     self?.onFound(port.rawValue == 80 ? ip : "\(ip):\(port.rawValue)")
                     self?.stopOnQueue() // found it; search again only if it stops answering
                 } else {
+                    print("S1Dash: OpenHaldex resolved to \(String(describing: c.currentPath?.remoteEndpoint)), not IPv4")
                     c.cancel(); self?.resolving = nil
                 }
-            case .failed, .cancelled:
+            case .failed(let e):
+                print("S1Dash: couldn't reach the OpenHaldex service: \(e)")
+                if self?.resolving === c { self?.resolving = nil }
+            case .cancelled:
                 if self?.resolving === c { self?.resolving = nil }
             default: break
             }
