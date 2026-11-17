@@ -48,6 +48,7 @@ class ElmProtocol(private val input: InputStream, private val output: OutputStre
 
     /** [singleFrame] promises the reply fits one CAN frame, which allows the much quicker hinted form. */
     fun request(req: ByteArray, timeoutMs: Long = 600, singleFrame: Boolean = false): ByteArray? {
+        lastError = ""
         val hex = req.joinToString("") { String.format("%02X", it) }
         val long = timeoutMs > SHORT_MS && canSetTimeout
         if (long) command("ATSTFF", COMMAND_MS) // otherwise the ELM gives up after 200 ms, whatever we wait
@@ -58,7 +59,8 @@ class ElmProtocol(private val input: InputStream, private val output: OutputStre
 
     private fun exchange(hex: String, timeoutMs: Long, hinted: Boolean): ByteArray? {
         val deadline = clock.now() + timeoutMs
-        val lines = command(if (hinted) hex + "1" else hex, timeoutMs) ?: return null
+        val lines = command(if (hinted) hex + "1" else hex, timeoutMs)
+        if (lines == null) { lastError = "Adapter didn't answer in time"; return null }
         if (hinted && lines.any { it == "?" }) {
             usesHint = false
             return exchange(hex, timeoutMs, false)
@@ -108,7 +110,10 @@ class ElmProtocol(private val input: InputStream, private val output: OutputStre
     /** ELM text -> bytes: single frames, the "len / 0: / 1:" multi-frame format, and any "please wait" frames among them. */
     private fun parse(lines: List<String>): Parsed {
         val text = lines.map { strip(it) }.filter { it != "OK" && !it.startsWith("SEARCHING") }
-        if (text.any { l -> l == "?" || BAD.any { l.contains(it) } }) return Parsed(null, false)
+        text.firstOrNull { l -> l == "?" || BAD.any { l.contains(it) } }?.let { bad ->
+            lastError = why(bad)
+            return Parsed(null, false)
+        }
         val pendingRe = Regex("7F[0-9A-F]{2}78")
         val pending = text.any { pendingRe.matches(it) }
         val rest = text.filter { !pendingRe.matches(it) }
@@ -130,6 +135,15 @@ class ElmProtocol(private val input: InputStream, private val output: OutputStre
         }
         if (expected in 1 until bytes.size) bytes = bytes.copyOf(expected)
         return Parsed(bytes, pending)
+    }
+
+    /** What an ELM error word means for the person looking at the status line. */
+    private fun why(word: String): String = when {
+        word.contains("NODATA") -> "ECU silent (NO DATA). Is the ignition on?"
+        word.contains("CANERROR") || word.contains("UNABLE") || word.contains("BUS") ->
+            "Adapter can't talk on the car's CAN bus ($word)"
+        word == "?" -> "Adapter didn't understand the request"
+        else -> "Adapter said $word"
     }
 
     private fun isHex(c: Char) = c in '0'..'9' || c in 'A'..'F'

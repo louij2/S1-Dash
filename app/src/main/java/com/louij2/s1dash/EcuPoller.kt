@@ -37,6 +37,8 @@ class EcuPoller(
     private var multiOk = true
     private var multiFails = 0
     private val backoff = Backoff()
+    /** The ECU's last single-DID answer, to tell a refusal from silence. */
+    private var lastReply: ByteArray? = null
 
     /** Lets go of the dongle and waits longer each time it fails again, so SimosTools can get in. */
     private fun waitAfterFailure(what: String) {
@@ -119,7 +121,7 @@ class EcuPoller(
                     if (!ok) {
                         DataHub.dropEcuValues()
                         t.close(); transport = null
-                        waitAfterFailure("no ECU reply")
+                        waitAfterFailure(noReplyReason(lastReply, t.lastError))
                         continue
                     }
                     backoff.reset()
@@ -142,7 +144,7 @@ class EcuPoller(
                 if (answered == 0) {
                     DataHub.dropEcuValues()
                     t.close(); transport = null
-                    waitAfterFailure("no ECU reply")
+                    waitAfterFailure(noReplyReason(lastReply, t.lastError))
                     continue
                 }
                 backoff.reset()
@@ -196,7 +198,9 @@ class EcuPoller(
 
     private fun readPid(t: UdsTransport, p: Pid): Boolean {
         val req = byteArrayOf(0x22, (p.did shr 8).toByte(), p.did.toByte())
-        val r = send(t, req, singleFrame = true) ?: return false
+        val r = send(t, req, singleFrame = true)
+        lastReply = r
+        if (r == null) return false
         if (r.size < 3 || r[0] != 0x62.toByte()) return false
         if ((r[1].toInt() and 0xFF) != (p.did shr 8) || (r[2].toInt() and 0xFF) != (p.did and 0xFF)) return false
         DataHub.put(p.key, EcuPids.decode(p, r, 3))
@@ -271,4 +275,16 @@ class EcuPoller(
             return String.format("%c%01X%01X%02X-%02X", letter, (hi shr 4) and 3, hi and 0xF, (code shr 8) and 0xFF, code and 0xFF)
         }
     }
+}
+
+/**
+ * Why the ECU gave nothing usable. A negative reply (7F 22 xx) means something answered but
+ * refused the VW mode-22 request: not a Simos18 engine, so S1 Dash can't read it.
+ */
+fun noReplyReason(lastReply: ByteArray?, transportError: String): String {
+    val r = lastReply
+    if (r != null && r.size >= 3 && r[0] == 0x7F.toByte() && r[1] == 0x22.toByte()) {
+        return "ECU refused VW data (NRC %02X). Not a VW/Audi Simos18 engine?".format(r[2].toInt() and 0xFF)
+    }
+    return transportError.ifEmpty { "no ECU reply" }
 }

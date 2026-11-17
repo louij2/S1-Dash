@@ -30,6 +30,9 @@ class FakeElm(private val clock: SimClock, val p: Profile) {
         val clearMs: Long = 100,
         val pendingFirst: Boolean = false,   // ECU sends 7F xx 78 before slow answers
         val lateEvery: Int = 0,              // every Nth reply turns up very late
+        val ecuOff: Boolean = false,         // ignition off: nothing on the bus answers
+        val notSimos: Boolean = false,       // another make's ECU: refuses every mode-22 DID
+        val canError: Boolean = false,       // wrong bus or wiring: the adapter reports CAN ERROR
     )
 
     val requests = ArrayList<String>()
@@ -74,6 +77,7 @@ class FakeElm(private val clock: SimClock, val p: Profile) {
             want = hex.last().digitToInt(16)
             hex = hex.dropLast(1)
         }
+        if (p.canError) { emit(t0 + p.latencyMs + st, "CAN ERROR\r\r>"); return }
         val req = ByteArray(hex.length / 2) { hex.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
         count++
         val late = if (p.lateEvery > 0 && count % p.lateEvery == 0) 900L else 0L
@@ -123,6 +127,8 @@ class FakeElm(private val clock: SimClock, val p: Profile) {
     private fun ecu(r: ByteArray): List<Pair<Long, ByteArray>> {
         fun b(vararg v: Int) = ByteArray(v.size) { v[it].toByte() }
         val pos = r[0].toInt() and 0xFF
+        if (p.ecuOff) return emptyList()
+        if (p.notSimos && pos == 0x22) return listOf(0L to b(0x7F, 0x22, 0x31))
         return when {
             pos == 0x22 && r.size == 3 -> {
                 val did = ((r[1].toInt() and 0xFF) shl 8) or (r[2].toInt() and 0xFF)

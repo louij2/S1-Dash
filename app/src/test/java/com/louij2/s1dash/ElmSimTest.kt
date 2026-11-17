@@ -129,6 +129,42 @@ class ElmSimTest {
         assertTrue(e.lastError, e.lastError.contains("cut off"))
     }
 
+    // ---------- the status line says why there's no reading ----------
+
+    @Test fun ignitionOffSaysSo() {
+        val (_, e) = rig(genuine.copy(ecuOff = true))
+        assertTrue(e.open())
+        assertEquals(null, e.request(did(0xF40C), 600, true))
+        assertTrue(e.lastError, e.lastError.contains("ignition"))
+    }
+
+    @Test fun canErrorSaysSo() {
+        val (_, e) = rig(genuine.copy(canError = true))
+        assertTrue(e.open())
+        assertEquals(null, e.request(did(0xF40C), 600, true))
+        assertTrue(e.lastError, e.lastError.contains("CAN bus"))
+    }
+
+    @Test fun anotherMakesEcuIsNamedAsSuch() {
+        val (_, e) = rig(genuine.copy(notSimos = true))
+        assertTrue(e.open())
+        val r = e.request(did(0xF40C), 600, true)
+        assertEquals(0x7F.toByte(), r!![0])
+        assertTrue(noReplyReason(r, e.lastError).contains("Simos18"))
+    }
+
+    @Test fun aGoodReplyClearsTheLastReason() {
+        val (_, e) = rig(genuine)
+        assertTrue(e.open())
+        e.request(did(0xF15B), 1500)
+        e.request(did(0xF40C), 600, true)
+        assertEquals("", e.lastError)
+    }
+
+    @Test fun silenceWithoutAReasonFallsBack() {
+        assertEquals("no ECU reply", noReplyReason(null, ""))
+    }
+
     // ---------- whole-run simulation: how much of the time does each dial have a reading? ----------
 
     private class Run(val shown: Map<String, Double>, val updatesPerSecond: Double, val reduced: Boolean?)
