@@ -64,6 +64,9 @@ class DemoSource {
             DataHub.put("hxTempProt", 0.0)
             DataHub.put("dtcEcu", 2.0)
             DataHub.put("dtcHaldex", 0.0)
+            // Corners left and right, braking into each and pulling out.
+            DataHub.put("gLat", sin(t * 0.31) * 0.95)
+            DataHub.put("gLon", -pull * 0.45 + max(0.0, -sin(t * 0.5 + 0.6)) * 0.8)
             try { Thread.sleep(100) } catch (_: InterruptedException) { break }
         }
     }

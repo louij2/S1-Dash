@@ -31,7 +31,8 @@
           fpDiSp: 150 + pull * 205, fpMpiSp: 5, lpfpDuty: 30 + pull * 45, boostDev: -pull * 0.04, lambdaDev: -pull * 0.01, fpDiDev: -pull * 5, fpMpiDev: -0.2, pedal: pull * 100, battery: 14.2, ecuSpeed: 60 + pull * 40, gear: 3, misfires: 0, turbo: 40 + pull * 120,
           torque: 60 + pull * 310, clutchSlip: demoSlip ? 8 : 0, clutchLoad: demoSlip ? 94 : 22, clutchWarn: demoSlip ? 1 : 0,
           hxMode: 2, hxLock: 30 + pull * 60, hxLockTarget: 30 + pull * 65, hxClutchTemp: Math.min(70, 30 + t * 0.15 + pull * 6),
-          hxModuleTemp: 24, hxFinTemp: 22, hxVolts: 13.9, hxTempProt: 0, dtcEcu: 2, dtcHaldex: 0 };
+          hxModuleTemp: 24, hxFinTemp: 22, hxVolts: 13.9, hxTempProt: 0, dtcEcu: 2, dtcHaldex: 0,
+          gLat: Math.sin(t * 0.31) * 0.95, gLon: -pull * 0.45 + Math.max(0, -Math.sin(t * 0.5 + 0.6)) * 0.8 };
         return JSON.stringify({ v: v, s: { oh: "demo", simos: /[?&]simos/.test(location.search) ? "connected" : undefined, ecu: /[?&]simos/.test(location.search) ? "in use by SimosTools" : /[?&]elm/.test(location.search) ? "connected (ELM327)" : "demo", ecuData: /[?&]elm/.test(location.search) ? "core" : undefined, ecuRate: /[?&]elm/.test(location.search) ? "3.2" : undefined },  peak: /[?&]still/.test(location.search) ? 1.78 : peak, logging: logging, t: Date.now() });
       },
       settings: function () { return JSON.stringify(settings); },
@@ -88,6 +89,13 @@
     var st = $("stage");
     st.style.width = W + "px"; st.style.height = H + "px";
     st.style.transform = "scale(" + scale + ")";
+    // Sport+: side by side, or on tall screens (a phone upright) a bigger circle above the numbers.
+    var sp = $("sp"), tall = H >= 1000;
+    sp.className = "sp" + (tall ? " tall" : "");
+    sp.style.left = Math.max(0, Math.round((W - 800) / 2)) + "px";
+    sp.style.top = (tall ? 70 : 64 + Math.max(0, Math.round((H - 480) / 2))) + "px";
+    $("gsvg").setAttribute("width", tall ? 600 : 360);
+    $("gsvg").setAttribute("height", tall ? 600 : 360);
     var cl = $("cluster"), stats = $("perf-stats");
     stats.className = "stats";
     cl.style.top = (58 + Math.max(0, Math.round((H - 480) / 2))) + "px";
@@ -481,6 +489,59 @@
     $("a-oh").textContent = snap.s.oh || "--";
   }
 
+  // Sport+: g-force circle. gLat + = pushed right (a left turn), gLon + = pushed forward (braking).
+  // The dot shows the force the driver feels: up when braking, left in a right turn.
+  var G_PX = 160 / 1.5, gTrail = [], gPeak = { l: 0, r: 0, b: 0, a: 0 };
+  function buildSport() {
+    var svg = $("gsvg"), h = "";
+    [0.5, 1, 1.5].forEach(function (g) {
+      h += '<circle class="ring' + (g === 1 ? " one" : "") + '" r="' + g * G_PX + '"/>';
+      h += '<text x="' + (g * G_PX - 30) + '" y="16">' + g + " g</text>";
+    });
+    h += '<line class="axis" x1="-170" y1="0" x2="170" y2="0"/><line class="axis" x1="0" y1="-170" x2="0" y2="170"/>';
+    h += '<text x="-30" y="-166" style="font-size:12px">BRAKE</text><text x="-24" y="178" style="font-size:12px">ACCEL</text>';
+    h += '<polyline class="trail" id="g-trail" points=""/>';
+    ["l", "r", "b", "a"].forEach(function (k) { h += '<circle class="peak" id="g-pk-' + k + '" r="5" cx="0" cy="0" style="display:none"/>'; });
+    h += '<circle class="dot" id="g-dot" r="11" cx="0" cy="0"/>';
+    svg.innerHTML = h;
+  }
+  function resetGPeaks() { gPeak = { l: 0, r: 0, b: 0, a: 0 }; gTrail = []; }
+  $("g-reset").onclick = resetGPeaks;
+  function gx(v) { return Math.max(-1.6, Math.min(1.6, v)) * G_PX; }
+  function renderSport() {
+    var v = snap.v, s = snap.s, have = v.gLat !== undefined && v.gLon !== undefined, now = Date.now();
+    var note = "";
+    if (!have) note = s.g === "no motion sensor" ? "This screen has no motion sensor, so no g-force here. Try S1 Dash on a phone."
+      : s.g === "learning" ? "Learning which way is down: keep the car still a moment." : "No g-force reading yet.";
+    $("g-note").textContent = note;
+    $("g-dot").style.display = have ? "" : "none";
+    if (have) {
+      gPeak.l = Math.max(gPeak.l, -v.gLat); gPeak.r = Math.max(gPeak.r, v.gLat);
+      gPeak.b = Math.max(gPeak.b, v.gLon); gPeak.a = Math.max(gPeak.a, -v.gLon);
+      gTrail.push([now, gx(v.gLat), gx(-v.gLon)]);
+      $("g-dot").setAttribute("cx", gx(v.gLat)); $("g-dot").setAttribute("cy", gx(-v.gLon));
+    }
+    while (gTrail.length && gTrail[0][0] < now - 3000) gTrail.shift();
+    $("g-trail").setAttribute("points", gTrail.map(function (p) { return p[1].toFixed(1) + "," + p[2].toFixed(1); }).join(" "));
+    var pos = { l: [-gPeak.l, 0], r: [gPeak.r, 0], b: [0, -gPeak.b], a: [0, gPeak.a] };
+    for (var k in pos) {
+      var el = $("g-pk-" + k), on = gPeak[k] >= 0.05;
+      el.style.display = on ? "" : "none";
+      if (on) { el.setAttribute("cx", gx(pos[k][0])); el.setAttribute("cy", gx(pos[k][1])); }
+    }
+    $("g-lat").textContent = have ? Math.abs(v.gLat).toFixed(2) + " g" : "--";
+    $("g-lonl").textContent = have && v.gLon < 0 ? "Accel." : "Braking";
+    $("g-lon").textContent = have ? Math.abs(v.gLon).toFixed(2) + " g" : "--";
+    $("pk-l").textContent = gPeak.l.toFixed(2) + " g"; $("pk-r").textContent = gPeak.r.toFixed(2) + " g";
+    $("pk-b").textContent = gPeak.b.toFixed(2) + " g"; $("pk-a").textContent = gPeak.a.toFixed(2) + " g";
+    // Power from the ECU's own torque figure: P = T x rpm / 9549 kW, shown in PS like the cluster.
+    var kw = v.torque !== undefined && v.rpm !== undefined ? v.torque * v.rpm / 9549 : undefined;
+    $("sp-pow").textContent = kw === undefined ? "--" : Math.max(0, kw * 1.35962).toFixed(0) + " PS";
+    $("sp-boost").textContent = num(v.boost, 2) + " bar";
+    $("sp-oil").textContent = num(v.oil, 0) + " °C";
+    $("sp-lock").textContent = num(v.hxLock, 0) + " %";
+  }
+
   // Fault memory: engine (via the ECU dongle) and Haldex (via OpenHaldex).
   var faultGroup = "ecu";
   function codeRows(json) {
@@ -690,6 +751,7 @@
     renderCommon();
     if (current === "perf") renderPerf();
     else if (current === "awd") renderAwd();
+    else if (current === "sport") renderSport();
     else if (current === "engine") { updateTiles("eng-tiles"); $("eng-status").textContent = snap.s.ecuRate ? "ECU " + snap.s.ecuRate + " updates/s" : "ECU: " + (snap.s.ecu || "--"); }
     else if (current === "menu") {
       $("m-mode").textContent = snap.v.hxMode !== undefined ? MODES[snap.v.hxMode] : "";
@@ -722,6 +784,7 @@
     for (var i = 0; i < h.length; i++) { var p = document.createElement("span"); p.className = "simos"; h[i].insertBefore(p, h[i].firstChild); }
   })();
   buildDials();
+  buildSport();
   buildModes();
   buildTiles("eng-tiles", ENGINE_KEYS);
   buildTiles("perf-tiles", PERF_KEYS);

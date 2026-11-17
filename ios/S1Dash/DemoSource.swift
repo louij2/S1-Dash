@@ -59,6 +59,8 @@ final class DemoSource {
             hub.put("hxTempProt", 0)
             hub.put("dtcEcu", 2)
             hub.put("dtcHaldex", 0)
+            hub.put("gLat", sin(t * 0.31) * 0.95)
+            hub.put("gLon", -pull * 0.45 + max(0, -sin(t * 0.5 + 0.6)) * 0.8)
             Thread.sleep(forTimeInterval: 0.1)
         }
     }
