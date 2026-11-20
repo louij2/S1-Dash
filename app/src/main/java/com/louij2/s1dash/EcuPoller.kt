@@ -150,7 +150,9 @@ class EcuPoller(
                     continue
                 }
                 val started = System.currentTimeMillis()
-                val fast = plan.fast
+                val extra = DataHub.extraFastKeys()
+                val fast = if (extra.isEmpty()) plan.fast
+                    else plan.fast + EcuPids.ALL.filter { it.key in extra && it !in plan.fast }
                 val slow = plan.nextSlow(DataHub.wantAllValues())
                 val readNow = readGroup(t, fast)
                 val answered = readNow.size + readGroup(t, slow).size

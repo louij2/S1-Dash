@@ -48,6 +48,7 @@ object DataHub {
         "bridgePassword" to "",       // the bridge's adapter password as set in SimosTools; empty = its default
         "dtcIndicator" to "1",
         "boostTarget" to "1.8",       // expected peak boost, bar, marked on the dial
+        "autoLog" to "off",           // off | cruise | pedal | either: record on its own, like SimosTools (#1038)
         "demo" to "0",
         "uiScale" to "100",           // percent of the largest size that fits the screen
     )
@@ -68,6 +69,7 @@ object DataHub {
     fun setSetting(key: String, value: String) {
         if (key !in DEFAULTS) return
         prefs.edit().putString(key, value).apply()
+        if (key == "autoLog") AutoLogger.restart()
         if (key in setOf("ohEnabled", "ohHost", "ecuAdapter", "ecuMac", "bridgeName", "bridgePassword", "demo")) restartSources()
     }
 
@@ -88,7 +90,10 @@ object DataHub {
         return if (System.currentTimeMillis() - t <= holdFor(key)) values[key] else null
     }
 
-    fun wantAllValues() = focusAll || Logger.active
+    fun wantAllValues() = focusAll || Logger.active || AutoLogger.recording
+
+    /** Values to read every cycle on top of the core dials: the auto-record trigger's, while it's armed. */
+    fun extraFastKeys(): Set<String> = if (AutoLogger.armed) LogTrigger.KEYS else emptySet()
 
     fun setHolds(fastMs: Long, slowMs: Long, fastKeys: List<String>, derived: List<String>) {
         for (p in EcuPids.ALL) holds[p.key] = slowMs
@@ -120,7 +125,7 @@ object DataHub {
             .put("v", v)
             .put("s", s)
             .put("peak", boostPeak)
-            .put("logging", Logger.active)
+            .put("logging", Logger.active || AutoLogger.recording)
             .put("t", now)
             .toString()
     }
@@ -166,6 +171,7 @@ object DataHub {
     }
 
     fun startSources() {
+        AutoLogger.start()
         if (setting("demo") == "1") {
             status["g"] = "demo"
             demo = DemoSource().also { it.start() }
@@ -192,6 +198,7 @@ object DataHub {
     }
 
     fun stopSources() {
+        AutoLogger.stop()
         openHaldex?.stop(); openHaldex = null
         ecu?.stop(); ecu = null
         demo?.stop(); demo = null
@@ -242,6 +249,87 @@ object DataHub {
         "gLat", "gLon",
     )
 
+    private fun logHeader() = "time_ms," + LOG_COLUMNS.joinToString(",") + "\n"
+
+    /** One CSV row of the logged columns, without the time. */
+    private fun logValues(): String {
+        val row = StringBuilder()
+        for (c in LOG_COLUMNS) {
+            row.append(',')
+            get(c)?.let { row.append(String.format(Locale.UK, "%.3f", it)) }
+        }
+        return row.toString()
+    }
+
+    private fun logName(prefix: String): String = prefix + SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.UK).format(Date()) + ".csv"
+
+    /**
+     * Records on its own when the [LogTrigger] says so (#1038). Keeps the last 2 s of rows in memory,
+     * so a recording starts with the lead-in, and closes it 2 s after the trigger lets go.
+     * Stands aside while a manual recording runs.
+     */
+    object AutoLogger {
+        @Volatile var recording = false
+            private set
+        @Volatile var armed = false
+            private set
+        private var thread: Thread? = null
+
+        @Volatile private var running = false
+
+        @Synchronized
+        fun start() { running = true; restart() }
+
+        @Synchronized
+        fun stop() { running = false; thread?.interrupt(); thread = null; recording = false; armed = false }
+
+        @Synchronized
+        fun restart() {
+            thread?.interrupt(); thread = null
+            recording = false
+            armed = false
+            if (!running) return
+            val trigger = LogTrigger(setting("autoLog"))
+            armed = trigger.armed
+            if (!armed) return
+            thread = Thread({ run(trigger) }, "auto-logger").also { it.start() }
+        }
+
+        private fun run(trigger: LogTrigger) {
+            val lead = ArrayDeque<Pair<Long, String>>()
+            var out: FileWriter? = null
+            var t0 = 0L
+            try {
+                while (!Thread.currentThread().isInterrupted) {
+                    val now = System.currentTimeMillis()
+                    val row = logValues()
+                    val on = !Logger.active && trigger.recording(now, get("cruise"), get("pedal"))
+                    if (on && out == null) {
+                        out = FileWriter(File(Logger.dir(), logName("s1dash_auto_")))
+                        out.write(logHeader())
+                        t0 = lead.firstOrNull()?.first ?: now
+                        for ((t, r) in lead) out.write((t - t0).toString() + r + "\n")
+                        lead.clear()
+                        recording = true
+                    }
+                    if (out != null) {
+                        out.write((now - t0).toString() + row + "\n")
+                        if (!on) { out.close(); out = null; recording = false }
+                    } else {
+                        lead.addLast(now to row)
+                        while (lead.isNotEmpty() && now - lead.first().first > LogTrigger.LEAD_MS) lead.removeFirst()
+                    }
+                    Thread.sleep(100)
+                }
+            } catch (_: InterruptedException) {
+            } catch (_: java.io.IOException) {
+            } finally {
+                try { out?.close() } catch (_: Exception) {}
+                recording = false
+            }
+        }
+    }
+
     object Logger {
         @Volatile var active = false
             private set
@@ -256,21 +344,15 @@ object DataHub {
         @Synchronized
         fun start() {
             if (active) return
-            val name = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.UK).format(Date())
-            val f = File(dir(), "s1dash_$name.csv")
+            val f = File(dir(), logName("s1dash_"))
             file = f
             active = true
             thread = Thread {
                 FileWriter(f).use { w ->
-                    w.write("time_ms," + LOG_COLUMNS.joinToString(",") + "\n")
+                    w.write(logHeader())
                     val t0 = System.currentTimeMillis()
                     while (active) {
-                        val row = StringBuilder().append(System.currentTimeMillis() - t0)
-                        for (c in LOG_COLUMNS) {
-                            row.append(',')
-                            get(c)?.let { row.append(String.format(Locale.UK, "%.3f", it)) }
-                        }
-                        w.write(row.append('\n').toString())
+                        w.write((System.currentTimeMillis() - t0).toString() + logValues() + "\n")
                         try { Thread.sleep(100) } catch (_: InterruptedException) { break }
                     }
                     w.flush()

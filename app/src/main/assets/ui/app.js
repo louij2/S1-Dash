@@ -9,7 +9,7 @@
 
   function demoBridge() {
     var settings = { theme: "s1", ohEnabled: "1", ohHost: "auto", ecuAdapter: "bridge", ecuMac: "",
-      bridgeName: "BLE_TO_ISOTP20", bridgePassword: "", dtcIndicator: "1", boostTarget: "1.8", demo: "1", uiScale: "100" };
+      bridgeName: "BLE_TO_ISOTP20", bridgePassword: "", autoLog: "off", dtcIndicator: "1", boostTarget: "1.8", demo: "1", uiScale: "100" };
     try { var saved = JSON.parse(localStorage.getItem("s1demo") || "{}"); for (var k in saved) settings[k] = saved[k]; } catch (e) {}
     var q = location.search.replace("?", "").split("&");
     q.forEach(function (p) { var kv = p.split("="); if (kv[0] && kv[0] in settings) settings[kv[0]] = decodeURIComponent(kv[1] || ""); });
@@ -581,6 +581,7 @@
     if (!info.active) $("rec-time").textContent = "00:00";
     $("log-list").innerHTML =
       '<div class="row">Saved sessions<span class="val">' + info.sessions + "</span></div>" +
+      '<div class="row">Auto-record<span class="val">' + ({ either: "cruise held or pedal > 70 %", pedal: "pedal > 70 %", cruise: "cruise held" }[settings.autoLog] || "off (Settings)") + "</span></div>" +
       '<div class="row" style="font-size:16px;color:#9a9ea3">' + info.dir + "</div>" +
       '<div class="row head">Recorded</div>' +
       '<div class="row" style="font-size:18px;color:#9a9ea3">Boost, MAP, ambient, IAT, coolant, oil, knock 1-4, timing, wastegate, fuel, trims, speed, gear, torque, clutch slip and load estimate, Haldex mode / lock / temps / volts</div>';
@@ -696,6 +697,11 @@
       (settings.ecuAdapter === "bridge" ? '<div class="row">Dongle password<span class="sub">only if you set one in SimosTools</span><input id="br-pass" value="' + esc(settings.bridgePassword || "") + '" placeholder="default"></div>' : "") +
       '<div class="row dim">Status<span class="val" id="st-ecu">' + (s.ecu || "--") + "</span></div>" +
       '<div class="row dim">Data<span class="val" id="st-data">' + (dataNote() || "--") + "</span></div>";
+    h += '<div class="row head">Data logger</div>' +
+      radio("autoLog", "off", "Record by hand only") +
+      radio("autoLog", "either", "Auto-record: cruise held or pedal over 70 %", "like SimosTools, 2 s before and after") +
+      radio("autoLog", "pedal", "Auto-record: pedal over 70 %") +
+      radio("autoLog", "cruise", "Auto-record: cruise held");
     h += '<div class="row head">Other</div>' + toggle("demo", "Demo mode", "made-up readings, no car needed") +
       '<div class="row" id="set-simos">Open SimosTools<span class="val">frees the dongle</span><span class="chev">↗</span></div>';
     $("set-list").innerHTML = h;
