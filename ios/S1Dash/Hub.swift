@@ -17,6 +17,7 @@ final class Hub {
         "bridgePassword": "",       // the BLE bridge's adapter password (BLE bridge not on iPhone yet)
         "dtcIndicator": "1",
         "boostTarget": "1.8",       // expected peak boost, bar, marked on the dial
+        "autoLog": "off",           // auto-record (#1038): Android only so far
         "demo": "0",
         "uiScale": "100",
     ]
