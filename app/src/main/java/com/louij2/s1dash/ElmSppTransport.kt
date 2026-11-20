@@ -27,6 +27,10 @@ class ElmSppTransport(private val ctx: Context, private val mac: String) : UdsTr
         val bt = (ctx.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter ?: return false
         if (!bt.isEnabled) { error = "Bluetooth is off"; return false }
         val dev = try { bt.getRemoteDevice(mac.trim().uppercase()) } catch (_: Exception) { error = "Bad dongle address"; return false }
+        if (dev.type == BluetoothDevice.DEVICE_TYPE_LE) {
+            error = "That dongle is Bluetooth LE: for the SimosTools bridge choose 'SimosTools dongle' in Settings"
+            return false
+        }
         try { bt.cancelDiscovery() } catch (_: Exception) {}
         val s = connect(dev)
         if (s == null) { error = "Dongle won't connect. Is it Bluetooth Classic, and free?"; return false }
