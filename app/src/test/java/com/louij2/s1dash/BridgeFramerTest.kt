@@ -46,4 +46,17 @@ class BridgeFramerTest {
         assertNull(f.unknown)
         assertEquals(1, f.notifications)
     }
+
+    // From SimosTools 2.19 (ConnectionService.m "sendPassword" and .b): default "BLE123", flags 0xC7, ids 0/0.
+    @Test fun defaultPasswordPacketMatchesSimosTools() {
+        assertArrayEquals(b(0xF1, 0xC7, 0, 0, 0, 0, 6, 0, 0x14, 0x1E, 0x22, 0x24, 0x46, 0x73), BridgeFramer.passwordPacket(""))
+        assertArrayEquals(BridgeFramer.passwordPacket(""), BridgeFramer.passwordPacket("BLE123"))
+    }
+
+    @Test fun scrambledBytesAbove0x7fGoOutAsUtf8LikeTheApp() {
+        // "zz": (0x7A + 1234) & 0xFF = 0x4C, then (0x7A + 1234) & 0xFF again (key += 0 after byte 0).
+        assertArrayEquals(b(0x4C, 0x4C), BridgeFramer.scramble("zz"))
+        // 0xFF + 1234 = 0x5D1 -> 0xD1: one char above 0x7F becomes two UTF-8 bytes (C3 91).
+        assertArrayEquals(b(0xC3, 0x91), BridgeFramer.scramble("\u00FF"))
+    }
 }

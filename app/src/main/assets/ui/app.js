@@ -9,7 +9,7 @@
 
   function demoBridge() {
     var settings = { theme: "s1", ohEnabled: "1", ohHost: "auto", ecuAdapter: "bridge", ecuMac: "",
-      bridgeName: "BLE_TO_ISOTP20", dtcIndicator: "1", boostTarget: "1.8", demo: "1", uiScale: "100" };
+      bridgeName: "BLE_TO_ISOTP20", bridgePassword: "", dtcIndicator: "1", boostTarget: "1.8", demo: "1", uiScale: "100" };
     try { var saved = JSON.parse(localStorage.getItem("s1demo") || "{}"); for (var k in saved) settings[k] = saved[k]; } catch (e) {}
     var q = location.search.replace("?", "").split("&");
     q.forEach(function (p) { var kv = p.split("="); if (kv[0] && kv[0] in settings) settings[kv[0]] = decodeURIComponent(kv[1] || ""); });
@@ -693,6 +693,7 @@
       radio("ecuAdapter", "none", "None") + radio("ecuAdapter", "bridge", "SimosTools dongle", "BLE ISO-TP bridge") +
       radio("ecuAdapter", "elm", "ELM327 dongle", "Bluetooth Classic only, slower: core dials first. No flashing") +
       '<div class="row">Dongle<span class="val">' + (settings.ecuMac || (settings.ecuAdapter === "bridge" ? "find by name " + settings.bridgeName : "not set")) + '</span><span class="btn" id="pick-dev">Choose…</span><span class="btn" id="clear-dev">Clear</span></div>' +
+      (settings.ecuAdapter === "bridge" ? '<div class="row">Dongle password<span class="sub">only if you set one in SimosTools</span><input id="br-pass" value="' + esc(settings.bridgePassword || "") + '" placeholder="default"></div>' : "") +
       '<div class="row dim">Status<span class="val" id="st-ecu">' + (s.ecu || "--") + "</span></div>" +
       '<div class="row dim">Data<span class="val" id="st-data">' + (dataNote() || "--") + "</span></div>";
     h += '<div class="row head">Other</div>' + toggle("demo", "Demo mode", "made-up readings, no car needed") +
@@ -706,6 +707,7 @@
       if (k === "uiScale") layout();
       renderSettings();
     };
+    if ($("br-pass")) $("br-pass").onchange = function () { B.setSetting("bridgePassword", this.value.trim()); };
     $("oh-host").onchange = function () { B.setSetting("ohHost", this.value.trim() || "auto"); };
     function stepBoost(d) {
       var x = Math.max(0.5, Math.min(1.9, Math.round(((parseFloat(settings.boostTarget) || 1.8) + d) * 100) / 100));

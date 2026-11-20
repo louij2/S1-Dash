@@ -52,11 +52,34 @@ class BridgeFramer {
         fun hex(b: ByteArray, max: Int): String =
             b.take(max).joinToString(" ") { "%02X".format(it) } + if (b.size > max) " …" else ""
 
+        /** SimosTools' default when its "Adapter password" setting is empty. */
+        const val DEFAULT_PASSWORD = "BLE123"
+        /** SETTINGS | SETTINGS_GET | BRG_SETTING_PASSWORD (128 | 64 | 7). */
+        const val FLAGS_PASSWORD = 0xC7
+
+        /**
+         * The password packet SimosTools 2.19 sends straight after connecting (ConnectionService
+         * "sendPassword"): ids 0/0, payload = the password scrambled one byte at a time with a
+         * running key (1234, then +11*i after byte i), sent as UTF-8 like the app does. BridgeLEG
+         * firmware built with its password check ignores every other packet until this arrives (#1037).
+         */
+        fun passwordPacket(password: String): ByteArray = packet(scramble(password.ifEmpty { DEFAULT_PASSWORD }), 0, 0, FLAGS_PASSWORD)
+
+        fun scramble(password: String): ByteArray {
+            var key = 1234
+            val sb = StringBuilder()
+            password.forEachIndexed { i, c ->
+                sb.append((((c.code and 0xFF) + key) and 0xFF).toChar())
+                key += 11 * i
+            }
+            return sb.toString().toByteArray(Charsets.UTF_8)
+        }
+
         /** The request packet: header with rx 0x7E8 / tx 0x7E0 (the ECU link the bridge firmware routes), then the UDS bytes. */
-        fun packet(req: ByteArray, rxId: Int, txId: Int): ByteArray {
+        fun packet(req: ByteArray, rxId: Int, txId: Int, flags: Int = 0): ByteArray {
             val pkt = ByteArray(HEADER + req.size)
             pkt[0] = HEADER_ID.toByte()
-            pkt[1] = 0
+            pkt[1] = flags.toByte()
             pkt[2] = (rxId and 0xFF).toByte(); pkt[3] = (rxId shr 8).toByte()
             pkt[4] = (txId and 0xFF).toByte(); pkt[5] = (txId shr 8).toByte()
             pkt[6] = (req.size and 0xFF).toByte(); pkt[7] = (req.size shr 8).toByte()

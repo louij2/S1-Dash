@@ -110,7 +110,7 @@ class EcuPoller(
                     }
                     DataHub.status.remove("simos")
                     DataHub.status["ecu"] = "connecting"
-                    t = if (adapter == "bridge") IsoTpBleTransport(ctx, mac, bridgeName) else ElmSppTransport(ctx, mac)
+                    t = if (adapter == "bridge") IsoTpBleTransport(ctx, mac, bridgeName, DataHub.setting("bridgePassword")) else ElmSppTransport(ctx, mac)
                     if (!t.open()) {
                         t.close()
                         waitAfterFailure(t.lastError.ifEmpty { "no adapter" })

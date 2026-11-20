@@ -45,6 +45,7 @@ object DataHub {
         "ecuAdapter" to "none",       // none | bridge (SimosTools dongle) | elm (ELM327, e.g. the wheel's dongle)
         "ecuMac" to "",               // adapter MAC; for the bridge, empty = find it by name
         "bridgeName" to "BLE_TO_ISOTP20",
+        "bridgePassword" to "",       // the bridge's adapter password as set in SimosTools; empty = its default
         "dtcIndicator" to "1",
         "boostTarget" to "1.8",       // expected peak boost, bar, marked on the dial
         "demo" to "0",
@@ -67,7 +68,7 @@ object DataHub {
     fun setSetting(key: String, value: String) {
         if (key !in DEFAULTS) return
         prefs.edit().putString(key, value).apply()
-        if (key in setOf("ohEnabled", "ohHost", "ecuAdapter", "ecuMac", "bridgeName", "demo")) restartSources()
+        if (key in setOf("ohEnabled", "ohHost", "ecuAdapter", "ecuMac", "bridgeName", "bridgePassword", "demo")) restartSources()
     }
 
     fun put(key: String, v: Double?) {

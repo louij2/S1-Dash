@@ -31,6 +31,7 @@ class IsoTpBleTransport(
     private val ctx: Context,
     private val mac: String,
     private val name: String,
+    private val password: String = "",
 ) : UdsTransport {
     override val label = "SimosTools dongle"
     override val multiFrame = true
@@ -58,8 +59,24 @@ class IsoTpBleTransport(
         ok = false
         gatt = dev.connectGatt(ctx, false, callback, BluetoothDevice.TRANSPORT_LE)
         if (!ready.await(12, TimeUnit.SECONDS)) { why = "bridge didn't finish connecting"; return false }
-        if (!ok) why = "bridge connected but notifications couldn't be switched on"
-        return ok
+        if (!ok) { why = "bridge connected but notifications couldn't be switched on"; return false }
+        return sendPassword()
+    }
+
+    /**
+     * Sends the adapter password the way SimosTools does on every connect. 0xFF back = accepted,
+     * 0x00 = wrong password. No answer = firmware without the check (public v1.03), which is fine.
+     */
+    private fun sendPassword(): Boolean {
+        replies.clear()
+        if (!write(BridgeFramer.passwordPacket(password))) { why = "bridge refused the password write"; return false }
+        val r = replies.poll(PASSWORD_WAIT_MS, TimeUnit.MILLISECONDS) ?: return true
+        replies.clear()
+        if (r.size == 1 && r[0] == 0x00.toByte()) {
+            why = "bridge refused the password: set the same 'Adapter password' as in SimosTools"
+            return false
+        }
+        return true
     }
 
     private fun scanByName(): BluetoothDevice? {
@@ -124,21 +141,11 @@ class IsoTpBleTransport(
 
     @Suppress("DEPRECATION")
     override fun request(req: ByteArray, timeoutMs: Long, singleFrame: Boolean): ByteArray? {
-        val g = gatt ?: return null
-        val c = tx ?: return null
+        if (gatt == null || tx == null) return null
         replies.clear()
         framer.reset()
         why = ""
-        val pkt = BridgeFramer.packet(req, RX_ID, TX_ID)
-        val type = if (c.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE != 0)
-            BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE else BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-        val sent = if (Build.VERSION.SDK_INT >= 33) {
-            g.writeCharacteristic(c, pkt, type) == BluetoothGatt.GATT_SUCCESS
-        } else {
-            c.writeType = type
-            c.value = pkt
-            g.writeCharacteristic(c)
-        }
+        val sent = write(BridgeFramer.packet(req, RX_ID, TX_ID))
         if (!sent) { why = "bridge refused the request (BLE write failed)"; return null }
         val wait = maxOf(timeoutMs, MIN_WAIT_MS)
         var deadline = System.currentTimeMillis() + wait
@@ -152,6 +159,21 @@ class IsoTpBleTransport(
             if (r.size >= 3 && r[0] == 0x7F.toByte() && r[2] == 0x78.toByte()) { deadline += 3000; continue }
             if (r[0] == (req[0] + 0x40).toByte() || r[0] == 0x7F.toByte()) return r
             other = r
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun write(pkt: ByteArray): Boolean {
+        val g = gatt ?: return false
+        val c = tx ?: return false
+        val type = if (c.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE != 0)
+            BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE else BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        return if (Build.VERSION.SDK_INT >= 33) {
+            g.writeCharacteristic(c, pkt, type) == BluetoothGatt.GATT_SUCCESS
+        } else {
+            c.writeType = type
+            c.value = pkt
+            g.writeCharacteristic(c)
         }
     }
 
@@ -184,5 +206,6 @@ class IsoTpBleTransport(
         const val RX_ID = 0x7E8
         /** The bridge adds BLE and ISO-TP latency on top of the ECU's own. */
         const val MIN_WAIT_MS = 1000L
+        const val PASSWORD_WAIT_MS = 1000L
     }
 }
