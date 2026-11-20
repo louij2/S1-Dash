@@ -37,6 +37,22 @@ class EcuPoller(
     private var multiOk = true
     private var multiFails = 0
     private val backoff = Backoff()
+    /** Unanswered reads in a row on the current connection. */
+    private var misses = 0
+
+    /**
+     * A read went unanswered. Ask again on the same connection a couple of times before
+     * hanging up: reconnecting waits 2-30 s, and one lost request shouldn't cost that (#1037).
+     * Returns true while it's still worth asking again.
+     */
+    private fun missedOnLink(t: UdsTransport): Boolean {
+        misses++
+        if (misses >= MISSES_BEFORE_RECONNECT) { misses = 0; return false }
+        DataHub.status["ecu"] = "${noReplyReason(lastReply, t.lastError)}, asking again"
+        Thread.sleep(MISS_RETRY_MS)
+        return true
+    }
+
     /** The ECU's last single-DID answer, to tell a refusal from silence. */
     private var lastReply: ByteArray? = null
 
@@ -94,13 +110,14 @@ class EcuPoller(
                     }
                     DataHub.status.remove("simos")
                     DataHub.status["ecu"] = "connecting"
-                    t = if (adapter == "bridge") IsoTpBleTransport(ctx, mac, bridgeName) else ElmSppTransport(ctx, mac)
+                    t = if (adapter == "bridge") IsoTpBleTransport(ctx, mac, bridgeName, DataHub.setting("bridgePassword")) else ElmSppTransport(ctx, mac)
                     if (!t.open()) {
                         t.close()
                         waitAfterFailure(t.lastError.ifEmpty { "no adapter" })
                         continue
                     }
                     transport = t
+                    misses = 0
                     guard.reset()
                     multiOk = true
                     multiFails = 0
@@ -119,11 +136,13 @@ class EcuPoller(
                     if (ok) EcuPids.ALL.filter { it.key in keys && it.key != "rpm" }.forEach { readPid(t, it) }
                     guard.feedRpm(if (ok) DataHub.get("rpm") else null)
                     if (!ok) {
+                        if (missedOnLink(t)) continue
                         DataHub.dropEcuValues()
                         t.close(); transport = null
                         waitAfterFailure(noReplyReason(lastReply, t.lastError))
                         continue
                     }
+                    misses = 0
                     backoff.reset()
                     DataHub.status["ecu"] = if (guard.warm) "connected (${t.label})" else "connected (${t.label}), waiting for the engine"
                     DataHub.status.remove("ecuRate")
@@ -142,11 +161,13 @@ class EcuPoller(
                 derive()
                 if (readNow.containsAll(DataHub.CLUTCH_INPUTS)) DataHub.feedClutch(DataHub.clutch)
                 if (answered == 0) {
+                    if (missedOnLink(t)) continue
                     DataHub.dropEcuValues()
                     t.close(); transport = null
                     waitAfterFailure(noReplyReason(lastReply, t.lastError))
                     continue
                 }
+                misses = 0
                 backoff.reset()
                 if (System.currentTimeMillis() - lastDtcCount > 30_000L) {
                     lastDtcCount = System.currentTimeMillis()
@@ -265,6 +286,8 @@ class EcuPoller(
         if (r != null && r.size >= 3 && r[0] == 0x7F.toByte()) String.format("ECU said no (NRC %02X)", r[2]) else fallback
 
     companion object {
+        const val MISSES_BEFORE_RECONNECT = 3
+        const val MISS_RETRY_MS = 500L
         /** Worked out from polled values each cycle, so they stay as current as the fast list. */
         private val DERIVED = listOf("boost", "ambientBar", "knockAvg", "lambda", "boostDev", "lambdaDev", "fpDiDev", "fpMpiDev", "clutchSlip", "clutchLoad", "clutchWarn")
 

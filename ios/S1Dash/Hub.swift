@@ -14,6 +14,7 @@ final class Hub {
         "ecuAdapter": "none",       // only "none" works on iPhone so far
         "ecuMac": "",
         "bridgeName": "BLE_TO_ISOTP20",
+        "bridgePassword": "",       // the BLE bridge's adapter password (BLE bridge not on iPhone yet)
         "dtcIndicator": "1",
         "boostTarget": "1.8",       // expected peak boost, bar, marked on the dial
         "demo": "0",
