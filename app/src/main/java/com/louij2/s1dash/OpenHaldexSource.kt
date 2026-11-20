@@ -119,6 +119,15 @@ class OpenHaldexSource(private val ctx: Context, setting: String) {
             DataHub.put("hxClutchCurrent", num(u, "clutchCurrent"))
         }
         DataHub.status["ohDiagTool"] = if (o.optBoolean("diagToolActive")) "1" else "0"
+        // Force-mode triggers (#1049); null while OpenHaldex has no chassis CAN, so they go stale.
+        fun flag(k: String, onWhen: Boolean) {
+            if (o.has(k) && !o.isNull(k)) DataHub.put(FLAG_KEYS.getValue(k), if (o.optBoolean(k) == onWhen) 1.0 else 0.0)
+        }
+        flag("tcOn", false)
+        flag("asrOn", false)
+        flag("hazardActive", true)
+        flag("extButtonActive", true)
+        o.optJSONObject("driveMode")?.let { d -> if (!d.isNull("forcing")) DataHub.put("hxDriveForce", d.optDouble("forcing", -1.0)) }
     }
 
     /** With Disable controller on, OpenHaldex ignores every mode request (its own button still works);
@@ -126,6 +135,13 @@ class OpenHaldexSource(private val ctx: Context, setting: String) {
     private fun readSettings(o: JSONObject) {
         DataHub.status["ohDisabled"] = if (o.optBoolean("disableController")) "1" else "0"
         DataHub.status["ohStandalone"] = if (o.optBoolean("isStandalone")) "1" else "0"
+        // Which triggers force a mode, to what, and which wins: the UI works out the mode in use (#1049).
+        DataHub.status["ohForce"] = JSONObject()
+            .put("tc", org.json.JSONArray().put(o.optBoolean("tcForceMode")).put(o.optInt("tcForceModeValue", -1)))
+            .put("hz", org.json.JSONArray().put(o.optBoolean("hazardForceMode")).put(o.optInt("hazardForceModeValue", -1)))
+            .put("ext", org.json.JSONArray().put(o.optBoolean("extButtonForceMode")).put(o.optInt("extBtnForceModeValue", -1)))
+            .put("prio", o.optInt("forceModesPriority", 0))
+            .toString()
     }
 
     /** Runs a Haldex DTC read (or clear) job on the controller and waits for the result. */
@@ -174,5 +190,7 @@ class OpenHaldexSource(private val ctx: Context, setting: String) {
 
     private companion object {
         const val LAST_FOUND = "ohLastFound"
+        /** /api/dashboard flag -> hub key, each 1 when the override is on. */
+        val FLAG_KEYS = mapOf("tcOn" to "hxTcOff", "asrOn" to "hxAsrOff", "hazardActive" to "hxHazard", "extButtonActive" to "hxExtBtn")
     }
 }
