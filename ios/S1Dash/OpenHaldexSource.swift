@@ -141,6 +141,12 @@ final class OpenHaldexSource {
             hub.put("hxClutchCurrent", num(u, "clutchCurrent"))
         }
         hub.setStatus("ohDiagTool", (o["diagToolActive"] as? Bool) == true ? "1" : "0")
+        // Force-mode triggers (#1049); null while OpenHaldex has no chassis CAN, so they go stale.
+        for (k, key, whenTrue) in [("tcOn", "hxTcOff", false), ("asrOn", "hxAsrOff", false),
+                                   ("hazardActive", "hxHazard", true), ("extButtonActive", "hxExtBtn", true)] {
+            if let b = o[k] as? Bool { hub.put(key, b == whenTrue ? 1 : 0) }
+        }
+        if let d = o["driveMode"] as? [String: Any], let f = num(d, "forcing") { hub.put("hxDriveForce", f) }
     }
 
     /// With Disable controller on, OpenHaldex ignores every mode request (its own button still works);
@@ -148,6 +154,12 @@ final class OpenHaldexSource {
     private func readSettings(_ o: [String: Any]) {
         Hub.shared.setStatus("ohDisabled", (o["disableController"] as? Bool) == true ? "1" : "0")
         Hub.shared.setStatus("ohStandalone", (o["isStandalone"] as? Bool) == true ? "1" : "0")
+        // Which triggers force a mode, to what, and which wins: the UI works out the mode in use (#1049).
+        func pair(_ en: String, _ val: String) -> [Any] { [(o[en] as? Bool) == true, (o[val] as? NSNumber)?.intValue ?? -1] }
+        Hub.shared.setStatus("ohForce", Hub.shared.json([
+            "tc": pair("tcForceMode", "tcForceModeValue"), "hz": pair("hazardForceMode", "hazardForceModeValue"),
+            "ext": pair("extButtonForceMode", "extBtnForceModeValue"), "prio": (o["forceModesPriority"] as? NSNumber)?.intValue ?? 0,
+        ]))
     }
 
     /// Runs a Haldex DTC read (or clear) job on the controller and waits for the result.

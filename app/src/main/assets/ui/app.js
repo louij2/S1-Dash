@@ -403,6 +403,29 @@
 
   var DTC_ICON = '<svg width="22" height="16" viewBox="0 0 22 16"><path d="M3 5h2V3h7v2h3l2 2h2v-2h2v7h-2v-2h-2v4h-4l-2 2H6l-1-2H3v-3H1v-3h2z" fill="none" stroke="#f0a81c" stroke-width="1.5" stroke-linejoin="round"/></svg>';
 
+  // OpenHaldex overrides (#1049). The flags come from /api/dashboard; which triggers force a mode,
+  // to what, and in which order come from /api/settings. Same rule as the firmware's
+  // get_forced_mode_value(): the first enabled + active trigger in priority order wins, then drive mode.
+  var FORCE_ORDER = [[1, 0, 2], [0, 1, 2], [1, 2, 0], [0, 2, 1], [2, 0, 1], [2, 1, 0]]; // 0 TC, 1 hazards, 2 button
+  var FORCE_BY = ["TC off", "hazards", "button"];
+  function overrides() {
+    var v = snap.v, cfg = {}, chips = [];
+    try { cfg = JSON.parse(snap.s.ohForce || "{}"); } catch (e) {}
+    if (v.hxTcOff === 1) chips.push("TC OFF"); else if (v.hxAsrOff === 1) chips.push("ASR OFF");
+    if (v.hxHazard === 1) chips.push("HAZARD");
+    if (v.hxExtBtn === 1) chips.push("BUTTON");
+    var flags = [v.hxTcOff === 1, v.hxHazard === 1, v.hxExtBtn === 1], trig = [cfg.tc, cfg.hz, cfg.ext];
+    var order = FORCE_ORDER[cfg.prio] || FORCE_ORDER[0], forced = -1, by = "";
+    for (var i = 0; i < 3 && forced < 0; i++) {
+      var k = order[i];
+      if (trig[k] && trig[k][0] && flags[k]) { forced = trig[k][1]; by = FORCE_BY[k]; }
+    }
+    if (forced < 0 && v.hxDriveForce !== undefined && v.hxDriveForce >= 0) { forced = v.hxDriveForce; by = "drive mode"; }
+    if (!MODES[forced]) forced = -1;
+    if (forced >= 0) chips.push("FORCED " + MODES[forced]);
+    return { chips: chips, forced: forced, by: by };
+  }
+
   function renderCommon() {
     var d = new Date(), clock = pad2(d.getHours()) + ":" + pad2(d.getMinutes());
     var els = document.querySelectorAll(".clock");
@@ -413,6 +436,9 @@
     var st = snap.s.simos ? "SimosTools connected" : snap.s.ecu === "paused for SimosTools" ? "SimosTools open" : "";
     var si = document.querySelectorAll(".simos");
     for (i = 0; i < si.length; i++) { si[i].textContent = st; si[i].style.display = st ? "block" : "none"; }
+    var ov = overrides().chips.join(" · ");
+    var oe = document.querySelectorAll(".ovr");
+    for (i = 0; i < oe.length; i++) { oe[i].textContent = ov; oe[i].style.display = ov ? "block" : "none"; }
     var amb = document.querySelectorAll(".amb"), a = snap.v.ambientBar;
     for (i = 0; i < amb.length; i++) amb[i].textContent = a !== undefined ? a.toFixed(3) + " bar" : "";
   }
@@ -438,8 +464,9 @@
     targets.L.pk = snap.peak;
     targets.R.m = v.oil !== undefined ? v.oil : 40;
     targets.R.s = v.hxClutchTemp !== undefined ? v.hxClutchTemp : 0;
-    $("d-mode").textContent = v.hxMode !== undefined ? MODES[v.hxMode] || "--" : "--";
-    $("d-lock").textContent = "lock " + num(v.hxLock, 0) + " %";
+    var ovp = overrides();
+    $("d-mode").textContent = ovp.forced >= 0 ? MODES[ovp.forced] : v.hxMode !== undefined ? MODES[v.hxMode] || "--" : "--";
+    $("d-lock").textContent = ovp.forced >= 0 ? "forced · " + ovp.by : "lock " + num(v.hxLock, 0) + " %";
     var rear = document.querySelectorAll("#perf .rear"), op = v.hxLock !== undefined ? 0.25 + 0.75 * Math.min(100, v.hxLock) / 100 : 0.25;
     for (var i = 0; i < rear.length; i++) rear[i].setAttribute("opacity", op.toFixed(2));
     $("d-peak").textContent = snap.peak > 0.05 ? snap.peak.toFixed(2) + " bar" : "--";
@@ -487,6 +514,8 @@
     $("a-volts").textContent = num(v.hxVolts, 1) + " V";
     $("a-prot").textContent = v.hxTempProt === undefined ? "--" : v.hxTempProt ? "ON" : "Off";
     $("a-oh").textContent = snap.s.oh || "--";
+    var ova = overrides();
+    $("a-ovr").textContent = ova.forced >= 0 ? ova.by : "none";
   }
 
   // RS mode: g-force circle. gLat + = pushed right (a left turn), gLon + = pushed forward (braking).
@@ -791,7 +820,10 @@
   // ---------- start ----------
   (function () {
     var h = document.querySelectorAll(".hdr .status");
-    for (var i = 0; i < h.length; i++) { var p = document.createElement("span"); p.className = "simos"; h[i].insertBefore(p, h[i].firstChild); }
+    for (var i = 0; i < h.length; i++) {
+      var p = document.createElement("span"); p.className = "simos"; h[i].insertBefore(p, h[i].firstChild);
+      var o = document.createElement("span"); o.className = "ovr"; h[i].insertBefore(o, h[i].firstChild);
+    }
   })();
   buildDials();
   buildSport();
