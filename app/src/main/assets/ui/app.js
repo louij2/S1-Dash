@@ -741,7 +741,7 @@
     h += '<div class="row head">Clutch estimate (manual gearbox, no real sensor)</div>' +
       '<div class="row">Learned gears<span class="val">' + (gears.length ? gears.join(" ") : "none yet, cruise in each gear") + '</span><span class="btn" id="clutch-reset">Reset</span></div>';
     h += '<div class="row head">OpenHaldex (Haldex data and modes)</div>' + toggle("ohEnabled", "Use OpenHaldex", "over its Wi-Fi") +
-      '<div class="row">Address<span class="sub">auto finds it, also on this unit's hotspot</span><input id="oh-host" value="' + esc(settings.ohHost) + '" placeholder="auto"></div>' +
+      '<div class="row">Address<span class="sub">auto finds it, also on this unit’s hotspot</span><input id="oh-host" value="' + esc(settings.ohHost) + '" placeholder="auto"></div>' +
       '<div class="row dim">Using<span class="val" id="st-ohat">' + esc(s.ohAt || "--") + "</span></div>" +
       '<div class="row dim">Status<span class="val" id="st-oh">' + (s.oh || "--") + "</span></div>";
     h += '<div class="row head">Engine ECU (Simos18 live data, same set as SimosTools)</div>' +
