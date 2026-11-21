@@ -52,6 +52,7 @@ object DataHub {
         "carplayPkg" to "",           // the head unit's CarPlay app, picked in Settings (#1060)
         "carplayName" to "",
         "returnBubble" to "1",        // floating "S1" button over other apps to come back
+        "stayConnected" to "1",       // keep OpenHaldex and the dongle going behind CarPlay (#1061)
         "demo" to "0",
         "uiScale" to "100",           // percent of the largest size that fits the screen
     )
@@ -73,6 +74,7 @@ object DataHub {
         if (key !in DEFAULTS) return
         prefs.edit().putString(key, value).apply()
         if (key == "autoLog") AutoLogger.restart()
+        if (key == "stayConnected") KeepAliveService.apply(appContext)
         if (key in setOf("ohEnabled", "ohHost", "ecuAdapter", "ecuMac", "bridgeName", "bridgePassword", "demo")) restartSources()
     }
 
@@ -238,6 +240,26 @@ object DataHub {
         if (!ecuReleased) return
         ecuReleased = false
         startEcu()
+    }
+
+    /** The notification's Disconnect button: everything stops until S1 Dash is opened again. */
+    @Volatile var disconnectedByUser = false
+        private set
+
+    @Synchronized
+    fun disconnectByUser() {
+        disconnectedByUser = true
+        stopSources()
+        status["oh"] = "disconnected"
+        status["ecu"] = "disconnected"
+    }
+
+    /** Back on screen after a Disconnect: connect again. */
+    @Synchronized
+    fun reconnectAfterUser() {
+        if (!disconnectedByUser) return
+        disconnectedByUser = false
+        if (sourceOwners.isNotEmpty()) startSources()
     }
 
     fun restartSources() {

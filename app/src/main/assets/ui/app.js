@@ -9,7 +9,7 @@
 
   function demoBridge() {
     var settings = { theme: "s1", ohEnabled: "1", ohHost: "auto", ecuAdapter: "bridge", ecuMac: "",
-      bridgeName: "BLE_TO_ISOTP20", bridgePassword: "", autoLog: "off", carplayPkg: "", carplayName: "", returnBubble: "1", dtcIndicator: "1", boostTarget: "1.8", demo: "1", uiScale: "100" };
+      bridgeName: "BLE_TO_ISOTP20", bridgePassword: "", autoLog: "off", carplayPkg: "", carplayName: "", returnBubble: "1", stayConnected: "1", dtcIndicator: "1", boostTarget: "1.8", demo: "1", uiScale: "100" };
     try { var saved = JSON.parse(localStorage.getItem("s1demo") || "{}"); for (var k in saved) settings[k] = saved[k]; } catch (e) {}
     var q = location.search.replace("?", "").split("&");
     q.forEach(function (p) { var kv = p.split("="); if (kv[0] && kv[0] in settings) settings[kv[0]] = decodeURIComponent(kv[1] || ""); });
@@ -749,7 +749,9 @@
         (settings.returnBubble === "1" && !ovOk ? '<div class="row alert" id="ask-ov">Allow "draw over other apps" for the floating button<span class="btn">Allow…</span></div>' : "");
     }
     if (typeof B.connLog === "function") h += '<div class="row head">Connections</div><div class="row" id="conn-log">Connection log<span class="val">OpenHaldex and ECU, with times</span><span class="chev">›</span></div>';
-    h += '<div class="row head">Other</div>' + toggle("demo", "Demo mode", "made-up readings, no car needed") +
+    h += '<div class="row head">Other</div>' +
+      (settings.stayConnected !== undefined ? toggle("stayConnected", "Stay connected in the background", "OpenHaldex and the dongle keep going behind CarPlay; a notification shows it. To use SimosTools, open it from S1 Dash") : "") +
+      toggle("demo", "Demo mode", "made-up readings, no car needed") +
       '<div class="row" id="set-simos">Open SimosTools<span class="val">frees the dongle</span><span class="chev">↗</span></div>';
     $("set-list").innerHTML = h;
     var rows = document.querySelectorAll("#set-list [data-set]");
