@@ -53,6 +53,11 @@ object DataHub {
         "carplayName" to "",
         "returnBubble" to "1",        // floating "S1" button over other apps to come back
         "stayConnected" to "1",       // keep OpenHaldex and the dongle going behind CarPlay (#1061)
+        "unitPressure" to "bar",      // bar | psi | kPa: what the screens show; logs stay metric
+        "unitTemp" to "C",            // C | F
+        "unitSpeed" to "kmh",         // kmh | mph
+        "unitTorque" to "Nm",         // Nm | lbft
+        "unitPower" to "PS",          // PS | hp | kW
         "demo" to "0",
         "uiScale" to "100",           // percent of the largest size that fits the screen
     )
