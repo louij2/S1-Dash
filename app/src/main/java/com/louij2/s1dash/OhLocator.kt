@@ -55,10 +55,10 @@ class OhAddress(
 
     fun answered() { lastGood = clock() }
 
-    fun found(hostPort: String) {
+    fun found(hostPort: String, how: String = "found by name") {
         if (!auto) return
         host = hostPort
-        source = "found by name"
+        source = how
         lastGood = clock()
         if (hostPort != cached) { cached = hostPort; save(hostPort) }
     }
@@ -118,13 +118,20 @@ class OhAddress(
 
 /** Looks for the "openhaldex" service with Android's DNS-SD (NsdManager), and reports host:port. */
 @SuppressLint("NewApi")
-class OhFinder(ctx: Context, private val onFound: (String) -> Unit) {
+class OhFinder(private val ctx: Context, private val onFound: (String, String) -> Unit) {
     private val nsd = ctx.getSystemService(Context.NSD_SERVICE) as NsdManager
     @Volatile private var listener: NsdManager.DiscoveryListener? = null
     @Volatile private var resolving = false
+    @Volatile private var lastFound = 0L
+    @Volatile private var sweeping = false
 
+    /**
+     * Looks by name, and if that finds nothing within [SWEEP_AFTER_MS], asks every address on this
+     * device's own small subnets: the only way to find OpenHaldex on this device's own hotspot.
+     */
     @Synchronized
     fun search() {
+        sweepLater()
         if (listener != null) return
         val l = object : NsdManager.DiscoveryListener {
             override fun onServiceFound(info: NsdServiceInfo) {
@@ -151,10 +158,26 @@ class OhFinder(ctx: Context, private val onFound: (String) -> Unit) {
                 val a: InetAddress = info.host ?: return
                 if (a !is Inet4Address) return
                 val port = info.port
-                onFound(a.hostAddress + if (port == 80 || port <= 0) "" else ":$port")
+                lastFound = System.currentTimeMillis()
+                onFound(a.hostAddress + if (port == 80 || port <= 0) "" else ":$port", "found by name")
                 stop() // found it; search again only if it stops answering
             }
         })
+    }
+
+    private fun sweepLater() {
+        if (sweeping) return
+        sweeping = true
+        val started = System.currentTimeMillis()
+        Thread({
+            try {
+                Thread.sleep(SWEEP_AFTER_MS)
+                if (lastFound < started) OhSweep.find(ctx)?.let { lastFound = System.currentTimeMillis(); onFound(it, "found on this network") }
+            } catch (_: InterruptedException) {
+            } finally {
+                sweeping = false
+            }
+        }, "oh-sweep").start()
     }
 
     @Synchronized
@@ -162,5 +185,9 @@ class OhFinder(ctx: Context, private val onFound: (String) -> Unit) {
         val l = listener ?: return
         listener = null
         try { nsd.stopServiceDiscovery(l) } catch (_: Exception) {}
+    }
+
+    private companion object {
+        const val SWEEP_AFTER_MS = 4000L
     }
 }
