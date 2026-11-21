@@ -63,6 +63,15 @@ The UI picks the largest size that fits the screen, whatever its shape. Wider sc
 extra column of engine data, and portrait screens stack it under the dials. If the edges are
 hidden, or you'd like more on screen, **Settings › Screen size** makes it smaller.
 
+## Switching to CarPlay and back
+
+On a head unit that shows CarPlay through an app (ZLink, AutoKit, Carlinkit and similar):
+
+1. **Settings › CarPlay switch › CarPlay app › Choose…** and pick the app that shows CarPlay. Apps that look like CarPlay are listed first.
+2. A **CarPlay ↗** button then sits in the top bar of every screen (and in the Car menu). One tap opens CarPlay.
+3. To come back, tap the round **S1** button floating over CarPlay. Drag it wherever it's out of the way and it stays there. The first time, Settings asks you to allow "draw over other apps".
+4. Many Android head units can also launch an app from a steering-wheel or hardware key (look for "key learning", "steering wheel keys" or "custom key" in the head unit's car settings). Assigning one key to S1 Dash gives a one-press way back as well.
+
 ## Where the data comes from
 
 | Data | Source | Notes |

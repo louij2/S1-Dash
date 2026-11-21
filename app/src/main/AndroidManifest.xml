@@ -15,6 +15,9 @@
     <!-- Android 9 only: saving a CAL to Downloads so SimosTools can pick it -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 
+    <!-- The floating "S1" button over CarPlay that brings S1 Dash back (#1060) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
@@ -22,6 +25,11 @@
     <!-- Lets the "Open SimosTools" button find the app on Android 11+ -->
     <queries>
         <package android:name="com.app.simostools" />
+        <!-- The CarPlay switch lists launchable apps to pick the CarPlay one (#1060) -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
     </queries>
 
     <application
