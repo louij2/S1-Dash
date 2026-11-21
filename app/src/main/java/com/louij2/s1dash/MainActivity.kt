@@ -53,11 +53,15 @@ class MainActivity : Activity() {
     override fun onStart() {
         super.onStart()
         ReturnBubble.hide(this)
+        DataHub.reconnectAfterUser()
         DataHub.screenShown()
+        KeepAliveService.apply(this) // started while on screen; Android won't allow it from the background
     }
 
     override fun onStop() {
-        DataHub.screenHidden(OWNER)
+        // Staying connected: keep everything, the dongle included, while CarPlay or another app is in front.
+        // Otherwise let go of the dongle for SimosTools as before (#967).
+        if (DataHub.setting("stayConnected") != "1") DataHub.screenHidden(OWNER)
         // Out of sight (CarPlay or another app on top): offer the way back (#1060).
         if (!isFinishing && DataHub.setting("returnBubble") == "1") ReturnBubble.show(this)
         super.onStop()
@@ -110,7 +114,9 @@ class MainActivity : Activity() {
     }
 
     private fun askPermissions() {
-        val want = if (Build.VERSION.SDK_INT >= 31)
+        val want = if (Build.VERSION.SDK_INT >= 33)
+            arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.POST_NOTIFICATIONS)
+        else if (Build.VERSION.SDK_INT >= 31)
             arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN)
         else if (Build.VERSION.SDK_INT < 29) arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.WRITE_EXTERNAL_STORAGE)
         else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
