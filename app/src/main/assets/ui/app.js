@@ -393,6 +393,7 @@
     var h = "";
     MODES.forEach(function (m, i) { h += '<div class="row" data-mode="' + i + '"><span class="radio"></span>' + m + (i === 5 ? '<span class="sub">map from OpenHaldex</span>' : "") + "</div>"; });
     h += '<div class="row alert" id="a-modenote" style="display:none"></div>';
+    h += '<div class="row alert" id="a-diag" style="display:none"></div>';
     $("modes").innerHTML = h;
     var rows = $("modes").children;
     for (var i = 0; i < rows.length; i++) rows[i].onclick = function () {
@@ -524,6 +525,20 @@
     $("a-volts").textContent = num(v.hxVolts, 1) + " V";
     $("a-prot").textContent = v.hxTempProt === undefined ? "--" : v.hxTempProt ? "ON" : "Off";
     $("a-oh").textContent = snap.s.oh || "--";
+    // Haldex voltage / temps come from OpenHaldex's live diagnostics, which the firmware ships switched off.
+    var dn = $("a-diag"), dmsg = "";
+    if (snap.s.oh === "connected" && v.hxVolts === undefined && v.hxClutchTemp === undefined) {
+      if (snap.s.ohDiagTool === "1") dmsg = "Haldex data paused: VCDS or SimosTools is using it";
+      else if (snap.s.ohLiveDiag === "0") dmsg = 'Live Diagnostics is off in OpenHaldex<span class="btn" id="a-diag-on" style="white-space:nowrap;margin-left:auto">Turn on</span>';
+      else if (snap.s.ohLiveDiag === "1") dmsg = "Live Diagnostics on, no Haldex reply yet";
+    }
+    if (dn.getAttribute("data-msg") !== dmsg) {
+      dn.setAttribute("data-msg", dmsg); dn.innerHTML = dmsg; dn.style.display = dmsg ? "" : "none";
+      if ($("a-diag-on")) $("a-diag-on").onclick = function () {
+        openModal("Turn on Live Diagnostics?", "OpenHaldex will poll the Haldex over its diagnostic channel for voltage, temperatures and clutch current. Turn it off in OpenHaldex before using VCDS on the Haldex.", "", "Turn on",
+          function () { B.ohLiveDiag(true); });
+      };
+    }
     var ova = overrides();
     $("a-ovr").textContent = ova.forced >= 0 ? ova.by : "none";
   }

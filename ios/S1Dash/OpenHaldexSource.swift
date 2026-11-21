@@ -58,6 +58,14 @@ final class OpenHaldexSource {
     }
 
     private var lastSettings = Date.distantPast
+    /// Switches OpenHaldex's "Enable Live Diagnostics" (the Haldex voltage and temperatures need it).
+    func setLiveDiag(_ on: Bool) {
+        enqueue { [weak self] in
+            _ = self?.post("/api/settings", "{\"liveDiagEnabled\":\(on)}")
+            self?.lastSettings = .distantPast
+        }
+    }
+
     func readDtcs() { enqueue { [weak self] in self?.dtcJob(clear: false) } }
     func clearDtcs() { enqueue { [weak self] in self?.dtcJob(clear: true) } }
 
@@ -156,6 +164,8 @@ final class OpenHaldexSource {
     private func readSettings(_ o: [String: Any]) {
         Hub.shared.setStatus("ohDisabled", (o["disableController"] as? Bool) == true ? "1" : "0")
         Hub.shared.setStatus("ohStandalone", (o["isStandalone"] as? Bool) == true ? "1" : "0")
+        // Off by default in the firmware; without it there's no Haldex voltage or temperature.
+        Hub.shared.setStatus("ohLiveDiag", (o["liveDiagEnabled"] as? Bool) == true ? "1" : "0")
         // Which triggers force a mode, to what, and which wins: the UI works out the mode in use (#1049).
         func pair(_ en: String, _ val: String) -> [Any] { [(o[en] as? Bool) == true, (o[val] as? NSNumber)?.intValue ?? -1] }
         Hub.shared.setStatus("ohForce", Hub.shared.json([

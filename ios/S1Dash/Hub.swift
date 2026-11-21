@@ -175,6 +175,7 @@ final class Hub {
 
     func setMode(_ mode: Int) { openHaldex?.setMode(mode) }
     func haldexDtcRead() { openHaldex?.readDtcs() }
+    func ohLiveDiag(_ on: Bool) { openHaldex?.setLiveDiag(on) }
     func haldexDtcClear() { openHaldex?.clearDtcs() }
 
     func json(_ o: Any) -> String {

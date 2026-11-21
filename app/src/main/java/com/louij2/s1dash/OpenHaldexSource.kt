@@ -50,6 +50,12 @@ class OpenHaldexSource(private val ctx: Context, setting: String) {
 
     @Volatile private var lastSettings = 0L
 
+    /** Switches OpenHaldex's "Enable Live Diagnostics" (the Haldex voltage and temperatures need it). */
+    fun setLiveDiag(on: Boolean) = commands.offer {
+        post("/api/settings", JSONObject().put("liveDiagEnabled", on).toString())
+        lastSettings = 0L // read it back
+    }
+
     fun readDtcs() = commands.offer { dtcJob(false) }
 
     fun clearDtcs() = commands.offer { dtcJob(true) }
@@ -139,6 +145,8 @@ class OpenHaldexSource(private val ctx: Context, setting: String) {
     private fun readSettings(o: JSONObject) {
         DataHub.status["ohDisabled"] = if (o.optBoolean("disableController")) "1" else "0"
         DataHub.status["ohStandalone"] = if (o.optBoolean("isStandalone")) "1" else "0"
+        // Off by default in the firmware; without it there's no Haldex voltage or temperature.
+        DataHub.status["ohLiveDiag"] = if (o.optBoolean("liveDiagEnabled")) "1" else "0"
         // Which triggers force a mode, to what, and which wins: the UI works out the mode in use (#1049).
         DataHub.status["ohForce"] = JSONObject()
             .put("tc", org.json.JSONArray().put(o.optBoolean("tcForceMode")).put(o.optInt("tcForceModeValue", -1)))
