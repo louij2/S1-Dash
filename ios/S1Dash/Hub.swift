@@ -18,6 +18,9 @@ final class Hub {
         "dtcIndicator": "1",
         "boostTarget": "1.8",       // expected peak boost, bar, marked on the dial
         "autoLog": "off",           // auto-record (#1038): Android only so far
+        "carplayPkg": "",           // Android head unit only (#1060)
+        "carplayName": "",
+        "returnBubble": "0",
         "demo": "0",
         "uiScale": "100",
     ]

@@ -49,6 +49,9 @@ object DataHub {
         "dtcIndicator" to "1",
         "boostTarget" to "1.8",       // expected peak boost, bar, marked on the dial
         "autoLog" to "off",           // off | cruise | pedal | either: record on its own, like SimosTools (#1038)
+        "carplayPkg" to "",           // the head unit's CarPlay app, picked in Settings (#1060)
+        "carplayName" to "",
+        "returnBubble" to "1",        // floating "S1" button over other apps to come back
         "demo" to "0",
         "uiScale" to "100",           // percent of the largest size that fits the screen
     )

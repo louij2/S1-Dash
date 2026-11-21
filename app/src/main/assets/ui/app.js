@@ -9,7 +9,7 @@
 
   function demoBridge() {
     var settings = { theme: "s1", ohEnabled: "1", ohHost: "auto", ecuAdapter: "bridge", ecuMac: "",
-      bridgeName: "BLE_TO_ISOTP20", bridgePassword: "", autoLog: "off", dtcIndicator: "1", boostTarget: "1.8", demo: "1", uiScale: "100" };
+      bridgeName: "BLE_TO_ISOTP20", bridgePassword: "", autoLog: "off", carplayPkg: "", carplayName: "", returnBubble: "1", dtcIndicator: "1", boostTarget: "1.8", demo: "1", uiScale: "100" };
     try { var saved = JSON.parse(localStorage.getItem("s1demo") || "{}"); for (var k in saved) settings[k] = saved[k]; } catch (e) {}
     var q = location.search.replace("?", "").split("&");
     q.forEach(function (p) { var kv = p.split("="); if (kv[0] && kv[0] in settings) settings[kv[0]] = decodeURIComponent(kv[1] || ""); });
@@ -48,6 +48,12 @@
       logInfo: function () { return JSON.stringify({ active: logging, sessions: 12, dir: "/sdcard/Android/data/com.louij2.s1dash/files/logs", file: "" }); },
       pairedDevices: function () { return JSON.stringify([{ name: "OBDII", mac: "00:1D:A5:68:98:8A" }, { name: "BLE_TO_ISOTP20", mac: "24:0A:C4:11:22:33" }]); },
       openSimosTools: function () { return false; }, reconnect: function () {},
+      launchableApps: function (all) {
+        var l = [{ pkg: "com.zjinnova.zlink", name: "ZLink", carplay: true }, { pkg: "com.app.simostools", name: "Simos Tools", carplay: false }, { pkg: "com.spotify.music", name: "Spotify", carplay: false }];
+        if (all) l.unshift({ pkg: "com.carlinkit.carplay", name: "CarPlay", carplay: true, system: true });
+        return JSON.stringify(l);
+      },
+      openApp: function () { return true; }, overlayAllowed: function () { return /[?&]overlay/.test(location.search); }, askOverlay: function () {},
       calState: function () {
         var o = { state: cal.state, message: "", slots: cal.slots };
         if (cal.state) { o.slot = cal.slot; o.name = cal.slots[cal.slot].name; }
@@ -436,6 +442,9 @@
     var st = snap.s.simos ? "SimosTools connected" : snap.s.ecu === "paused for SimosTools" ? "SimosTools open" : "";
     var si = document.querySelectorAll(".simos");
     for (i = 0; i < si.length; i++) { si[i].textContent = st; si[i].style.display = st ? "block" : "none"; }
+    var cpn = canSwitch() && settings.carplayPkg ? (settings.carplayName || "CarPlay") + " ↗" : "";
+    var cpe = document.querySelectorAll(".cp");
+    for (i = 0; i < cpe.length; i++) { cpe[i].textContent = cpn; cpe[i].style.display = cpn ? "block" : "none"; }
     var ov = overrides().chips.join(" · ");
     var oe = document.querySelectorAll(".ovr");
     for (i = 0; i < oe.length; i++) { oe[i].textContent = ov; oe[i].style.display = ov ? "block" : "none"; }
@@ -731,6 +740,13 @@
       radio("autoLog", "either", "Auto-record: cruise held or pedal over 70 %", "like SimosTools, 2 s before and after") +
       radio("autoLog", "pedal", "Auto-record: pedal over 70 %") +
       radio("autoLog", "cruise", "Auto-record: cruise held");
+    if (canSwitch()) {
+      var ovOk = B.overlayAllowed();
+      h += '<div class="row head">CarPlay switch</div>' +
+        '<div class="row">CarPlay app<span class="val">' + esc(settings.carplayName || "not set") + '</span><span class="btn" id="pick-cp">Choose…</span></div>' +
+        toggle("returnBubble", "Floating S1 button", "over CarPlay and other apps: tap to come back, drag to move") +
+        (settings.returnBubble === "1" && !ovOk ? '<div class="row alert" id="ask-ov">Allow "draw over other apps" for the floating button<span class="btn">Allow…</span></div>' : "");
+    }
     h += '<div class="row head">Other</div>' + toggle("demo", "Demo mode", "made-up readings, no car needed") +
       '<div class="row" id="set-simos">Open SimosTools<span class="val">frees the dongle</span><span class="chev">↗</span></div>';
     $("set-list").innerHTML = h;
@@ -743,6 +759,8 @@
       renderSettings();
     };
     if ($("br-pass")) $("br-pass").onchange = function () { B.setSetting("bridgePassword", this.value.trim()); };
+    if ($("pick-cp")) $("pick-cp").onclick = pickApp;
+    if ($("ask-ov")) $("ask-ov").onclick = function () { B.askOverlay(); };
     $("oh-host").onchange = function () { B.setSetting("ohHost", this.value.trim() || "auto"); };
     function stepBoost(d) {
       var x = Math.max(0.5, Math.min(1.9, Math.round(((parseFloat(settings.boostTarget) || 1.8) + d) * 100) / 100));
@@ -775,10 +793,39 @@
     };
   }
 
+  // S1 Dash <-> CarPlay switch (#1060): Android head unit only; the iPhone build has no app switching.
+  function canSwitch() { return typeof B.openApp === "function" && typeof B.launchableApps === "function"; }
+  function openCarPlay() {
+    if (!settings.carplayPkg) { pickApp(); return; }
+    if (!B.openApp(settings.carplayPkg)) openModal("App not found", (settings.carplayName || settings.carplayPkg) + " isn't installed any more. Choose the CarPlay app again in Settings.", "", null, null);
+  }
+  // A built-in (system) CarPlay app may have no launcher icon and not show in the app switcher,
+  // so the picker can list every app that has a screen to open.
+  var pickAll = false;
+  function pickApp() {
+    var apps = [];
+    try { apps = JSON.parse(B.launchableApps(pickAll)); } catch (e) {}
+    var h = '<div class="row" id="pick-all"><span class="tick' + (pickAll ? " on" : "") + '"></span>Show system apps<span class="sub">built-in, no icon</span></div>';
+    h += apps.length ? apps.map(function (a) {
+      var tags = (a.carplay ? "looks like CarPlay" : "") + (a.system ? (a.carplay ? " · " : "") + "system" : "");
+      return '<div class="row" data-pkg="' + esc(a.pkg) + '" data-name="' + esc(a.name) + '">' + esc(a.name) + (tags ? '<span class="sub">' + tags + "</span>" : "") + '<span class="val">' + esc(a.pkg) + "</span></div>";
+    }).join("") : '<div class="row dim">No apps found.</div>';
+    openModal("Choose the CarPlay app", "The app that shows CarPlay on this head unit", h, null, null);
+    $("pick-all").onclick = function () { pickAll = !pickAll; pickApp(); };
+    var rows = document.querySelectorAll("#m-list [data-pkg]");
+    for (var i = 0; i < rows.length; i++) rows[i].onclick = function () {
+      B.setSetting("carplayPkg", this.getAttribute("data-pkg")); B.setSetting("carplayName", this.getAttribute("data-name"));
+      settings = JSON.parse(B.settings()); closeModal(); if (current === "settings") renderSettings();
+    };
+  }
+
   function openSimos() {
     if (!B.openSimosTools()) openModal("SimosTools not installed", "Install SimosTools on this head unit to open it from here.", "", null, null);
   }
   $("open-simos").onclick = openSimos;
+  $("m-carplay").onclick = openCarPlay;
+  // Back from Android's "draw over other apps" screen: show the new permission state.
+  document.addEventListener("visibilitychange", function () { if (!document.hidden && current === "settings") renderSettings(); });
 
   // Tap the boost dial to reset the peak-hold.
   $("dialL").onclick = function () { B.resetPeak(); };
@@ -796,6 +843,8 @@
       var t = dtcTotal(); $("m-dtc").textContent = t === null ? "" : t + " codes";
       $("m-log").textContent = snap.logging ? "recording" : "";
       $("m-tune").textContent = snap.s.ecu === "paused for flash" ? "flashing" : "";
+      $("m-carplay").style.display = canSwitch() ? "" : "none";
+      $("m-cpname").textContent = settings.carplayName || "choose the app";
     } else if (current === "faults") {
       if (ticks % 10 === 0) renderFaults();
     } else if (current === "tune") {
@@ -823,6 +872,7 @@
     for (var i = 0; i < h.length; i++) {
       var p = document.createElement("span"); p.className = "simos"; h[i].insertBefore(p, h[i].firstChild);
       var o = document.createElement("span"); o.className = "ovr"; h[i].insertBefore(o, h[i].firstChild);
+      var c = document.createElement("span"); c.className = "cp"; c.onclick = openCarPlay; h[i].insertBefore(c, h[i].firstChild);
     }
   })();
   buildDials();

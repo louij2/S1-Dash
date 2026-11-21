@@ -52,11 +52,14 @@ class MainActivity : Activity() {
 
     override fun onStart() {
         super.onStart()
+        ReturnBubble.hide(this)
         DataHub.screenShown()
     }
 
     override fun onStop() {
         DataHub.screenHidden(OWNER)
+        // Out of sight (CarPlay or another app on top): offer the way back (#1060).
+        if (!isFinishing && DataHub.setting("returnBubble") == "1") ReturnBubble.show(this)
         super.onStop()
     }
 
@@ -99,6 +102,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        ReturnBubble.hide(this)
         DataHub.Logger.stop()
         DataHub.releaseSources(OWNER)
         web.destroy()
@@ -165,6 +169,24 @@ class MainActivity : Activity() {
             DataHub.status["ecu"] = "paused for SimosTools"
             runOnUiThread { startActivity(intent) }
             return true
+        }
+
+        /** Apps with a launcher icon, CarPlay-looking ones first, for the CarPlay switch picker (#1060). */
+        /** The apps for the CarPlay switch picker; [all] adds apps without a launcher icon, such as system apps. */
+        @JavascriptInterface fun launchableApps(all: Boolean): String = AppSwitch.list(this@MainActivity, all)
+
+        @JavascriptInterface fun openApp(pkg: String): Boolean {
+            val intent = AppSwitch.launchIntent(this@MainActivity, pkg) ?: return false
+            runOnUiThread {
+                try { startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) {}
+            }
+            return true
+        }
+
+        @JavascriptInterface fun overlayAllowed(): Boolean = ReturnBubble.allowed(this@MainActivity)
+
+        @JavascriptInterface fun askOverlay() = runOnUiThread {
+            startActivity(Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName")))
         }
 
         @JavascriptInterface fun calState(): String = CalFlash.json()
