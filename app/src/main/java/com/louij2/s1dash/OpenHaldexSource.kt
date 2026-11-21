@@ -19,8 +19,8 @@ class OpenHaldexSource(private val ctx: Context, setting: String) {
     private val address = OhAddress(setting, DataHub.prefs.getString(LAST_FOUND, null)) {
         DataHub.prefs.edit().putString(LAST_FOUND, it).apply()
     }
-    private val finder = if (address.auto) OhFinder(ctx) { found ->
-        address.found(found)
+    private val finder = if (address.auto) OhFinder(ctx) { found, how ->
+        address.found(found, how)
         showAddress()
     } else null
     private val host get() = address.host
