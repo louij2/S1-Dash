@@ -44,6 +44,7 @@ class IsoTpBleTransport(
     override val lastError: String get() = why
     private var ready = CountDownLatch(1)
     @Volatile private var ok = false
+    @Volatile private var linkDown = false
 
     override fun open(): Boolean {
         val bt = (ctx.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter ?: return false
@@ -100,7 +101,12 @@ class IsoTpBleTransport(
     private val callback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
             if (newState == BluetoothProfile.STATE_CONNECTED && status == BluetoothGatt.GATT_SUCCESS) g.discoverServices()
-            else { ok = false; ready.countDown() }
+            else {
+                // After a good connect this is the link dropping: say why, so the connection log shows it (#1061).
+                if (ok) { linkDown = true; why = "BLE link dropped (${gattReason(status)})" }
+                ok = false
+                ready.countDown()
+            }
         }
 
         override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
@@ -142,6 +148,7 @@ class IsoTpBleTransport(
     @Suppress("DEPRECATION")
     override fun request(req: ByteArray, timeoutMs: Long, singleFrame: Boolean): ByteArray? {
         if (gatt == null || tx == null) return null
+        if (linkDown) return null // keep the drop reason for the status line
         replies.clear()
         framer.reset()
         why = ""
@@ -192,6 +199,16 @@ class IsoTpBleTransport(
     }
 
     companion object {
+        /** Android's GATT status codes on a dropped link, in words. */
+        fun gattReason(status: Int): String = when (status) {
+            8 -> "status 8: link timeout, the radio lost the dongle"
+            19 -> "status 19: the dongle closed the connection"
+            22 -> "status 22: this device closed the connection"
+            62 -> "status 62: the connection never completed"
+            133 -> "status 133: Android GATT error"
+            else -> "status $status"
+        }
+
         /** Android knows when another app on this device holds the dongle: it stops advertising, so a scan can't tell. */
         fun heldElsewhere(ctx: Context, mac: String, name: String): Boolean = try {
             (ctx.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).getConnectedDevices(BluetoothProfile.GATT)

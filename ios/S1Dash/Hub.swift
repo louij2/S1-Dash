@@ -5,7 +5,8 @@ import Foundation
 /// `staleSeconds` are left out, so the screens show "--" instead of a frozen reading.
 final class Hub {
     static let shared = Hub()
-    static let staleSeconds = 3.0
+    /// Every iPhone value comes from OpenHaldex (or the demo), whose C6 sometimes stalls 2-5 s (#1061).
+    static let staleSeconds = 10.0
 
     static let defaults: [String: String] = [
         "theme": "s1",              // s1 | quattro | mmi

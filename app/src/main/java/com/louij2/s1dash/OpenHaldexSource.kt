@@ -27,6 +27,7 @@ class OpenHaldexSource(private val ctx: Context, setting: String) {
 
     fun start() {
         running = true
+        DataHub.holdLonger(KEYS, HOLD_MS)
         showAddress()
         finder?.search()
         thread = Thread({ loop() }, "openhaldex").apply { start() }
@@ -43,7 +44,7 @@ class OpenHaldexSource(private val ctx: Context, setting: String) {
     }
 
     fun setMode(mode: Int) = commands.offer {
-        post("/api/mode", JSONObject().put("mode", mode).toString())
+        post("/api/mode", JSONObject().put("mode", mode).toString(), MODE_READ_MS)
         lastSettings = 0L // re-read the flags that can make the controller ignore it
     }
 
@@ -55,7 +56,11 @@ class OpenHaldexSource(private val ctx: Context, setting: String) {
 
     private fun loop() {
         var lastDtc = 0L
-        var fails = 0
+        var lastGood = System.currentTimeMillis()
+        // Lost means no good reply for LOST_MS, not a count of misses: one slow C6 reply isn't a drop (#1061).
+        fun lost(why: String) {
+            if (System.currentTimeMillis() - lastGood > LOST_MS) DataHub.status["oh"] = why
+        }
         while (running) {
             try {
                 while (true) {
@@ -64,8 +69,7 @@ class OpenHaldexSource(private val ctx: Context, setting: String) {
                 }
                 val body = get("/api/dashboard")
                 if (body == null) {
-                    fails++
-                    if (fails >= 3) DataHub.status["oh"] = "no reply"
+                    lost("no reply")
                     if (address.failed()) { // moved (bridge mode on a hotspot)? look for it by name
                         showAddress()
                         finder?.search()
@@ -73,7 +77,7 @@ class OpenHaldexSource(private val ctx: Context, setting: String) {
                     sleep(1000)
                     continue
                 }
-                fails = 0
+                lastGood = System.currentTimeMillis()
                 address.answered()
                 DataHub.status["oh"] = "connected"
                 parse(JSONObject(body))
@@ -91,7 +95,7 @@ class OpenHaldexSource(private val ctx: Context, setting: String) {
             } catch (_: InterruptedException) {
                 break
             } catch (e: Exception) {
-                DataHub.status["oh"] = "error: ${e.javaClass.simpleName}"
+                lost("error: ${e.javaClass.simpleName}")
                 sleep(1000)
             }
         }
@@ -161,14 +165,14 @@ class OpenHaldexSource(private val ctx: Context, setting: String) {
         }
     }
 
-    private fun open(path: String): HttpURLConnection {
+    private fun open(path: String, readMs: Int = READ_MS): HttpURLConnection {
         val h = host
         val url = URL("http://$h$path")
         // The OpenHaldex AP has no internet, so bind to the network that holds its address rather
         // than let requests go out over mobile data. None holds it on this device's own hotspot.
         val c = (OhAddress.networkFor(ctx, h)?.openConnection(url) ?: url.openConnection()) as HttpURLConnection
-        c.connectTimeout = 800
-        c.readTimeout = 1500
+        c.connectTimeout = CONNECT_MS
+        c.readTimeout = readMs
         return c
     }
 
@@ -177,8 +181,9 @@ class OpenHaldexSource(private val ctx: Context, setting: String) {
         try { if (c.responseCode == 200) c.inputStream.bufferedReader().readText() else null } finally { c.disconnect() }
     } catch (_: Exception) { null }
 
-    private fun post(path: String, json: String): String? = try {
-        val c = open(path)
+    /** OpenHaldex never answers POST /api/mode (it applies the body), so don't wait long for it. */
+    private fun post(path: String, json: String, readMs: Int = READ_MS): String? = try {
+        val c = open(path, readMs)
         c.requestMethod = "POST"
         c.doOutput = true
         c.setRequestProperty("Content-Type", "application/json")
@@ -190,6 +195,16 @@ class OpenHaldexSource(private val ctx: Context, setting: String) {
 
     private companion object {
         const val LAST_FOUND = "ohLastFound"
+        /** The C6 shares one radio between Wi-Fi and BLE; about 1 in 40 replies takes 2-5 s (#1061). */
+        const val CONNECT_MS = 1500
+        const val READ_MS = 4000
+        const val MODE_READ_MS = 1000
+        const val LOST_MS = 8000L
+        /** OpenHaldex values stay on screen this long, so a stalled reply doesn't blank them. */
+        const val HOLD_MS = 10_000L
+        val KEYS = listOf("hxMode", "hxLock", "hxLockTarget", "hxTempProt", "ohRpm", "ohBoost", "ohOil", "ohCoolant",
+            "speed", "throttle", "hxVolts", "hxClutchTemp", "hxModuleTemp", "hxFinTemp", "hxClutchCurrent",
+            "hxTcOff", "hxAsrOff", "hxHazard", "hxExtBtn", "hxDriveForce", "dtcHaldex")
         /** /api/dashboard flag -> hub key, each 1 when the override is on. */
         val FLAG_KEYS = mapOf("tcOn" to "hxTcOff", "asrOn" to "hxAsrOff", "hazardActive" to "hxHazard", "extButtonActive" to "hxExtBtn")
     }

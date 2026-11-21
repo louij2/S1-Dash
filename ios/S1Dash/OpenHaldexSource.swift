@@ -16,8 +16,9 @@ final class OpenHaldexSource {
     init(host setting: String) {
         address = OhAddress(setting: setting)
         let cfg = URLSessionConfiguration.ephemeral
-        cfg.timeoutIntervalForRequest = 1.5
-        cfg.timeoutIntervalForResource = 3
+        // The C6 shares one radio between Wi-Fi and BLE; about 1 in 40 replies takes 2-5 s (#1061).
+        cfg.timeoutIntervalForRequest = 4
+        cfg.timeoutIntervalForResource = 6
         cfg.waitsForConnectivity = false
         // The OpenHaldex access point has no internet; it must still be used.
         cfg.allowsConstrainedNetworkAccess = true
@@ -51,7 +52,7 @@ final class OpenHaldexSource {
 
     func setMode(_ mode: Int) {
         enqueue { [weak self] in
-            _ = self?.post("/api/mode", "{\"mode\":\(mode)}")
+            _ = self?.post("/api/mode", "{\"mode\":\(mode)}", timeout: 1) // never answered by the firmware
             self?.lastSettings = .distantPast // re-read the flags that can make the controller ignore it
         }
     }
@@ -80,13 +81,14 @@ final class OpenHaldexSource {
     private func loop() {
         let hub = Hub.shared
         var lastDtc = Date.distantPast
-        var fails = 0
+        var lastGood = Date()
+        // Lost means no good reply for 8 s, not a count of misses: one slow C6 reply isn't a drop (#1061).
+        func lost(_ why: String) { if Date().timeIntervalSince(lastGood) > 8 { hub.setStatus("oh", why) } }
         while !cancelled {
             runCommands()
             guard let body = get("/api/dashboard"),
                   let o = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] else {
-                fails += 1
-                if fails >= 3 { hub.setStatus("oh", "no reply") }
+                lost("no reply")
                 if address.failed() { // moved (bridge mode on a hotspot)? look for it by name
                     showAddress()
                     finder?.search()
@@ -94,7 +96,7 @@ final class OpenHaldexSource {
                 _ = wake.wait(timeout: .now() + 1)
                 continue
             }
-            fails = 0
+            lastGood = Date()
             address.answered()
             hub.setStatus("oh", "connected")
             parse(o)
@@ -182,9 +184,10 @@ final class OpenHaldexSource {
 
     // MARK: HTTP, blocking on the source's own thread
 
-    private func request(_ path: String, body: String?) -> (Int, Data)? {
+    private func request(_ path: String, body: String?, timeout: TimeInterval = 4) -> (Int, Data)? {
         guard let url = URL(string: "http://\(host)\(path)") else { return nil }
         var req = URLRequest(url: url)
+        req.timeoutInterval = timeout
         if let b = body {
             req.httpMethod = "POST"
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -205,7 +208,7 @@ final class OpenHaldexSource {
         return data
     }
 
-    private func post(_ path: String, _ json: String) -> Data? {
-        request(path, body: json)?.1
+    private func post(_ path: String, _ json: String, timeout: TimeInterval = 4) -> Data? {
+        request(path, body: json, timeout: timeout)?.1
     }
 }

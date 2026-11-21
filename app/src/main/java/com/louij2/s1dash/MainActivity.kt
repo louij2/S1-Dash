@@ -171,7 +171,6 @@ class MainActivity : Activity() {
             return true
         }
 
-        /** Apps with a launcher icon, CarPlay-looking ones first, for the CarPlay switch picker (#1060). */
         /** The apps for the CarPlay switch picker; [all] adds apps without a launcher icon, such as system apps. */
         @JavascriptInterface fun launchableApps(all: Boolean): String = AppSwitch.list(this@MainActivity, all)
 
@@ -188,6 +187,8 @@ class MainActivity : Activity() {
         @JavascriptInterface fun askOverlay() = runOnUiThread {
             startActivity(Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName")))
         }
+        /** Status changes with times, newest last (#1061). */
+        @JavascriptInterface fun connLog(): String = ConnLog.text()
 
         @JavascriptInterface fun calState(): String = CalFlash.json()
         @Suppress("DEPRECATION")

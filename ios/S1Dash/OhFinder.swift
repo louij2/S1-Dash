@@ -9,7 +9,9 @@ final class OhAddress {
     private static let lastFoundKey = "s1.ohLastFound"
     private let lock = NSLock()
     let auto: Bool
-    private var fails = 0
+    /// Last good reply (or start); search again only after 20 s without one, then every 20 s (#1061).
+    private var lastGood = Date()
+    private var lastSearch = Date()
     private var _host: String
     private var _source: String
 
@@ -28,18 +30,19 @@ final class OhAddress {
     func failed() -> Bool {
         lock.lock(); defer { lock.unlock() }
         guard auto else { return false }
-        fails += 1
-        guard fails % 3 == 0 else { return false }
+        let now = Date()
+        guard now.timeIntervalSince(lastGood) >= 20, now.timeIntervalSince(lastSearch) >= 20 else { return false }
+        lastSearch = now
         if _host != OhAddress.fallback { _host = OhAddress.fallback; _source = "default" }
         return true
     }
 
-    func answered() { lock.lock(); fails = 0; lock.unlock() }
+    func answered() { lock.lock(); lastGood = Date(); lock.unlock() }
 
     func found(_ hostPort: String) {
         lock.lock(); defer { lock.unlock() }
         guard auto else { return }
-        _host = hostPort; _source = "found by name"; fails = 0
+        _host = hostPort; _source = "found by name"; lastGood = Date()
         UserDefaults.standard.set(hostPort, forKey: OhAddress.lastFoundKey)
     }
 

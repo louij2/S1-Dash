@@ -22,16 +22,21 @@ class OhAddressTest {
     @Test fun aTypedAddressIsUsedAsItIsAndNeverSearches() {
         val a = OhAddress("192.168.4.1", "10.42.0.17") {}
         assertEquals("192.168.4.1", a.host)
-        repeat(9) { assertFalse(a.failed()) }
+        repeat(9) { assertFalse(a.failed()) }  // typed: never searches, whatever the time
         a.found("10.0.0.9")
         assertEquals("192.168.4.1", a.host)
     }
 
-    @Test fun threeFailedPollsSearchAgainAndFallBackToTheOwnAp() {
-        val a = OhAddress("auto", "10.42.0.17") {}
-        assertFalse(a.failed()); assertFalse(a.failed())
+    @Test fun aSearchOnlyAfter20sWithoutAGoodReply() {
+        var now = 0L
+        val a = OhAddress("auto", "10.42.0.17", { now }) {}
+        repeat(19) { now += 1000; assertFalse("at $now ms", a.failed()) }  // C6 stalls of 2-5 s aren't a loss (#1061)
+        assertEquals("10.42.0.17", a.host)
+        now += 1000
         assertTrue(a.failed())
         assertEquals("192.168.1.1", a.host)
+        now += 1000; assertFalse("not again straight away", a.failed())
+        now += 20_000; assertTrue("again after another 20 s", a.failed())
     }
 
     @Test fun aFindIsUsedAndKept() {
@@ -43,10 +48,12 @@ class OhAddressTest {
         assertEquals("saved once", 1, saved.size)
     }
 
-    @Test fun answeringResetsTheFailCount() {
-        val a = OhAddress("auto", null) {}
-        a.failed(); a.failed(); a.answered()
-        assertFalse(a.failed())
+    @Test fun aGoodReplyRestartsTheClock() {
+        var now = 0L
+        val a = OhAddress("auto", null, { now }) {}
+        now = 15_000; a.answered()
+        now = 30_000; assertFalse("only 15 s since the last good reply", a.failed())
+        now = 35_001; assertTrue(a.failed())
     }
 
     @Test fun serviceNames() {

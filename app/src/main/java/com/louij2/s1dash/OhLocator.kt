@@ -17,10 +17,17 @@ import java.net.InetAddress
  * changes. The last address found is kept for next time, and 192.168.1.1 (its own AP) is the
  * fallback. A typed address is used as it is.
  */
-class OhAddress(setting: String, private var cached: String?, private val save: (String) -> Unit) {
+class OhAddress(
+    setting: String,
+    private var cached: String?,
+    private val clock: () -> Long = { System.currentTimeMillis() },
+    private val save: (String) -> Unit,
+) {
     val auto = isAuto(setting)
     private val typed = setting.trim()
-    private var fails = 0
+    /** Last good reply, or when we started; a search only after [SEARCH_AFTER_MS] without one (#1061). */
+    private var lastGood = clock()
+    private var lastSearch = clock()
     /** Where the current address came from, for the Settings screen. */
     @Volatile var source = ""
         private set
@@ -31,30 +38,35 @@ class OhAddress(setting: String, private var cached: String?, private val save: 
     }
         private set
 
-    /** A poll failed. Returns true when it's time to look for OpenHaldex again. */
+    /**
+     * A poll failed. Returns true when it's time to look for OpenHaldex again: after [SEARCH_AFTER_MS]
+     * with no good reply, then again every [SEARCH_AFTER_MS]. Time, not a count: the C6 shares one
+     * radio between Wi-Fi and BLE and sometimes takes 2-5 s to answer, which isn't a lost connection.
+     */
     fun failed(): Boolean {
         if (!auto) return false
-        fails++
-        if (fails % FAILS_BEFORE_SEARCH != 0) return false
+        val now = clock()
+        if (now - lastGood < SEARCH_AFTER_MS || now - lastSearch < SEARCH_AFTER_MS) return false
+        lastSearch = now
         // The last address found has stopped answering: try OpenHaldex's own AP while searching.
         if (host != DEFAULT) { host = DEFAULT; source = "default" }
         return true
     }
 
-    fun answered() { fails = 0 }
+    fun answered() { lastGood = clock() }
 
     fun found(hostPort: String) {
         if (!auto) return
         host = hostPort
         source = "found by name"
-        fails = 0
+        lastGood = clock()
         if (hostPort != cached) { cached = hostPort; save(hostPort) }
     }
 
     companion object {
         const val DEFAULT = "192.168.1.1"
         const val SERVICE_TYPE = "_http._tcp."
-        const val FAILS_BEFORE_SEARCH = 3
+        const val SEARCH_AFTER_MS = 20_000L
 
         fun isAuto(setting: String) = setting.isBlank() || setting.trim().equals("auto", ignoreCase = true)
 
