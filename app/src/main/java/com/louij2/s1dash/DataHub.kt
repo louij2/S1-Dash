@@ -86,7 +86,12 @@ object DataHub {
     /** Values OpenHaldex can stand in for when the ECU dongle isn't connected. The ECU wins when both exist. */
     private val FALLBACK = mapOf("oil" to "ohOil", "coolant" to "ohCoolant", "boost" to "ohBoost")
 
-    private fun holdFor(key: String) = holds[key] ?: STALE_MS
+    /** Hold times for sources other than the ECU (OpenHaldex); dropEcuValues leaves these alone. */
+    private val sourceHolds = ConcurrentHashMap<String, Long>()
+
+    fun holdLonger(keys: List<String>, ms: Long) { for (k in keys) sourceHolds[k] = ms }
+
+    private fun holdFor(key: String) = holds[key] ?: sourceHolds[key] ?: STALE_MS
 
     private fun fresh(key: String): Double? {
         val t = stamps[key] ?: return null
@@ -174,6 +179,7 @@ object DataHub {
     }
 
     fun startSources() {
+        ConnLog.start()
         AutoLogger.start()
         if (setting("demo") == "1") {
             status["g"] = "demo"
@@ -202,6 +208,7 @@ object DataHub {
 
     fun stopSources() {
         AutoLogger.stop()
+        ConnLog.stop()
         openHaldex?.stop(); openHaldex = null
         ecu?.stop(); ecu = null
         demo?.stop(); demo = null

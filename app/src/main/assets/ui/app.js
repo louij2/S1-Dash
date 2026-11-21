@@ -54,6 +54,7 @@
         return JSON.stringify(l);
       },
       openApp: function () { return true; }, overlayAllowed: function () { return /[?&]overlay/.test(location.search); }, askOverlay: function () {},
+      connLog: function () { return "21 Nov 10:00:01  sources started\n21 Nov 10:00:02  OpenHaldex: connected\n21 Nov 10:00:03  ECU: connected (SimosTools dongle)\n21 Nov 10:04:12  ECU: BLE link dropped (status 8: link timeout, the radio lost the dongle), asking again"; },
       calState: function () {
         var o = { state: cal.state, message: "", slots: cal.slots };
         if (cal.state) { o.slot = cal.slot; o.name = cal.slots[cal.slot].name; }
@@ -747,6 +748,7 @@
         toggle("returnBubble", "Floating S1 button", "over CarPlay and other apps: tap to come back, drag to move") +
         (settings.returnBubble === "1" && !ovOk ? '<div class="row alert" id="ask-ov">Allow "draw over other apps" for the floating button<span class="btn">Allow…</span></div>' : "");
     }
+    if (typeof B.connLog === "function") h += '<div class="row head">Connections</div><div class="row" id="conn-log">Connection log<span class="val">OpenHaldex and ECU, with times</span><span class="chev">›</span></div>';
     h += '<div class="row head">Other</div>' + toggle("demo", "Demo mode", "made-up readings, no car needed") +
       '<div class="row" id="set-simos">Open SimosTools<span class="val">frees the dongle</span><span class="chev">↗</span></div>';
     $("set-list").innerHTML = h;
@@ -761,6 +763,7 @@
     if ($("br-pass")) $("br-pass").onchange = function () { B.setSetting("bridgePassword", this.value.trim()); };
     if ($("pick-cp")) $("pick-cp").onclick = pickApp;
     if ($("ask-ov")) $("ask-ov").onclick = function () { B.askOverlay(); };
+    if ($("conn-log")) $("conn-log").onclick = showConnLog;
     $("oh-host").onchange = function () { B.setSetting("ohHost", this.value.trim() || "auto"); };
     function stepBoost(d) {
       var x = Math.max(0.5, Math.min(1.9, Math.round(((parseFloat(settings.boostTarget) || 1.8) + d) * 100) / 100));
@@ -817,6 +820,14 @@
       B.setSetting("carplayPkg", this.getAttribute("data-pkg")); B.setSetting("carplayName", this.getAttribute("data-name"));
       settings = JSON.parse(B.settings()); closeModal(); if (current === "settings") renderSettings();
     };
+  }
+
+  // Every OpenHaldex / ECU status change with its time, newest first (#1061). Also in logs/connections.log.
+  function showConnLog() {
+    var lines = (B.connLog() || "").split("\n").filter(function (l) { return l; }).reverse();
+    var h = lines.length ? lines.map(function (l) { return '<div class="row" style="font-size:17px">' + esc(l) + "</div>"; }).join("")
+      : '<div class="row dim">Nothing yet</div>';
+    openModal("Connection log", "Newest first. The full log is connections.log in the logs folder.", h, null, null);
   }
 
   function openSimos() {
