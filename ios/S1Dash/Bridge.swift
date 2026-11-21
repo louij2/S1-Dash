@@ -65,6 +65,7 @@ final class Bridge: NSObject, WKScriptMessageHandler {
             if let n = a.first as? NSNumber { hub.setMode(n.intValue) }
         case "resetPeak": hub.resetPeak()
         case "haldexDtcRead": hub.haldexDtcRead()
+        case "ohLiveDiag": hub.ohLiveDiag((a.first as? Bool) ?? ((a.first as? NSNumber)?.boolValue ?? false))
         case "haldexDtcClear": hub.haldexDtcClear()
         case "logStart": Logger.shared.start()
         case "logStop": Logger.shared.stop()
@@ -90,7 +91,7 @@ final class Bridge: NSObject, WKScriptMessageHandler {
             },
             setMode: act("setMode"), resetPeak: act("resetPeak"), pollFocus: act("pollFocus"),
             clutchInfo: get("clutchInfo"), clutchReset: act("clutchReset"),
-            haldexDtcs: get("haldexDtcs"), haldexDtcRead: act("haldexDtcRead"), haldexDtcClear: act("haldexDtcClear"),
+            haldexDtcs: get("haldexDtcs"), haldexDtcRead: act("haldexDtcRead"), ohLiveDiag: act("ohLiveDiag"), haldexDtcClear: act("haldexDtcClear"),
             ecuDtcs: get("ecuDtcs"), ecuDtcRead: act("ecuDtcRead"), ecuDtcClear: act("ecuDtcClear"),
             logStart: act("logStart"), logStop: act("logStop"), logInfo: get("logInfo"),
             pairedDevices: get("pairedDevices"), openSimosTools: function () { return false; }, reconnect: act("reconnect"),

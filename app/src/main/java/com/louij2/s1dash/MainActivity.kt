@@ -142,6 +142,7 @@ class MainActivity : Activity() {
         @JavascriptInterface fun clutchReset() = DataHub.clutch.reset()
 
         @JavascriptInterface fun haldexDtcs(): String = DataHub.haldexDtcJson
+        @JavascriptInterface fun ohLiveDiag(on: Boolean) { DataHub.openHaldex()?.setLiveDiag(on) }
         @JavascriptInterface fun haldexDtcRead() { DataHub.openHaldex()?.readDtcs() }
         @JavascriptInterface fun haldexDtcClear() { DataHub.openHaldex()?.clearDtcs() }
         @JavascriptInterface fun ecuDtcs(): String = DataHub.ecuDtcJson
