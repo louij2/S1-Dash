@@ -172,21 +172,14 @@ class MainActivity : Activity() {
         }
 
         /** Apps with a launcher icon, CarPlay-looking ones first, for the CarPlay switch picker (#1060). */
-        @JavascriptInterface fun launchableApps(): String {
-            val pm = packageManager
-            val apps = pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
-                .map { it.activityInfo.packageName to it.loadLabel(pm).toString() }
-                .filter { it.first != packageName }
-                .distinctBy { it.first }
-                .sortedWith(compareBy({ !AppSwitch.looksLikeCarPlay(it.first, it.second) }, { it.second.lowercase() }))
-            val arr = JSONArray()
-            apps.forEach { (pkg, name) -> arr.put(JSONObject().put("pkg", pkg).put("name", name).put("carplay", AppSwitch.looksLikeCarPlay(pkg, name))) }
-            return arr.toString()
-        }
+        /** The apps for the CarPlay switch picker; [all] adds apps without a launcher icon, such as system apps. */
+        @JavascriptInterface fun launchableApps(all: Boolean): String = AppSwitch.list(this@MainActivity, all)
 
         @JavascriptInterface fun openApp(pkg: String): Boolean {
-            val intent = packageManager.getLaunchIntentForPackage(pkg) ?: return false
-            runOnUiThread { startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            val intent = AppSwitch.launchIntent(this@MainActivity, pkg) ?: return false
+            runOnUiThread {
+                try { startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) {}
+            }
             return true
         }
 

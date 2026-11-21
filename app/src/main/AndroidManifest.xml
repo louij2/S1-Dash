@@ -17,6 +17,8 @@
 
     <!-- The floating "S1" button over CarPlay that brings S1 Dash back (#1060) -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- The picker's "show system apps": a built-in CarPlay app may have no launcher icon (Android 11+, the Tbox) -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
 
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />

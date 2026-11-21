@@ -72,6 +72,9 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 .row .radio { width: 18px; height: 18px; border: 1.5px solid var(--text-dim); border-radius: 50%; margin-right: 16px; position: relative; flex: none; }
 .row .radio.on::after { content: ""; position: absolute; left: 3px; top: 3px; right: 3px; bottom: 3px; border-radius: 50%; background: var(--text); }
 .row .box { width: 18px; height: 18px; border: 1.5px solid var(--text-dim); margin-right: 16px; position: relative; flex: none; }
+/* A checkbox inside a dialog (.box there is the dialog itself) */
+.row .tick { width: 18px; height: 18px; border: 1.5px solid var(--text-dim); margin-right: 16px; position: relative; flex: none; }
+.row .tick.on::after { content: ""; position: absolute; left: 5px; top: 1px; width: 5px; height: 10px; border: solid var(--text); border-width: 0 2px 2px 0; transform: rotate(45deg); }
 .row .box.on::after { content: ""; position: absolute; left: 5px; top: 1px; width: 5px; height: 10px; border: solid var(--text); border-width: 0 2px 2px 0; transform: rotate(45deg); }
 .row .chev { color: var(--text-faint); margin-left: 14px; font-size: 20px; }
 .row:active, .row.sel {

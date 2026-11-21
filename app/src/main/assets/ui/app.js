@@ -48,7 +48,11 @@
       logInfo: function () { return JSON.stringify({ active: logging, sessions: 12, dir: "/sdcard/Android/data/com.louij2.s1dash/files/logs", file: "" }); },
       pairedDevices: function () { return JSON.stringify([{ name: "OBDII", mac: "00:1D:A5:68:98:8A" }, { name: "BLE_TO_ISOTP20", mac: "24:0A:C4:11:22:33" }]); },
       openSimosTools: function () { return false; }, reconnect: function () {},
-      launchableApps: function () { return JSON.stringify([{ pkg: "com.zjinnova.zlink", name: "ZLink", carplay: true }, { pkg: "com.app.simostools", name: "Simos Tools", carplay: false }, { pkg: "com.spotify.music", name: "Spotify", carplay: false }]); },
+      launchableApps: function (all) {
+        var l = [{ pkg: "com.zjinnova.zlink", name: "ZLink", carplay: true }, { pkg: "com.app.simostools", name: "Simos Tools", carplay: false }, { pkg: "com.spotify.music", name: "Spotify", carplay: false }];
+        if (all) l.unshift({ pkg: "com.carlinkit.carplay", name: "CarPlay", carplay: true, system: true });
+        return JSON.stringify(l);
+      },
       openApp: function () { return true; }, overlayAllowed: function () { return /[?&]overlay/.test(location.search); }, askOverlay: function () {},
       calState: function () {
         var o = { state: cal.state, message: "", slots: cal.slots };
@@ -795,13 +799,19 @@
     if (!settings.carplayPkg) { pickApp(); return; }
     if (!B.openApp(settings.carplayPkg)) openModal("App not found", (settings.carplayName || settings.carplayPkg) + " isn't installed any more. Choose the CarPlay app again in Settings.", "", null, null);
   }
+  // A built-in (system) CarPlay app may have no launcher icon and not show in the app switcher,
+  // so the picker can list every app that has a screen to open.
+  var pickAll = false;
   function pickApp() {
     var apps = [];
-    try { apps = JSON.parse(B.launchableApps()); } catch (e) {}
-    var h = apps.length ? apps.map(function (a) {
-      return '<div class="row" data-pkg="' + esc(a.pkg) + '" data-name="' + esc(a.name) + '">' + esc(a.name) + (a.carplay ? '<span class="sub">looks like CarPlay</span>' : "") + '<span class="val">' + esc(a.pkg) + "</span></div>";
+    try { apps = JSON.parse(B.launchableApps(pickAll)); } catch (e) {}
+    var h = '<div class="row" id="pick-all"><span class="tick' + (pickAll ? " on" : "") + '"></span>Show system apps<span class="sub">built-in, no icon</span></div>';
+    h += apps.length ? apps.map(function (a) {
+      var tags = (a.carplay ? "looks like CarPlay" : "") + (a.system ? (a.carplay ? " · " : "") + "system" : "");
+      return '<div class="row" data-pkg="' + esc(a.pkg) + '" data-name="' + esc(a.name) + '">' + esc(a.name) + (tags ? '<span class="sub">' + tags + "</span>" : "") + '<span class="val">' + esc(a.pkg) + "</span></div>";
     }).join("") : '<div class="row dim">No apps found.</div>';
     openModal("Choose the CarPlay app", "The app that shows CarPlay on this head unit", h, null, null);
+    $("pick-all").onclick = function () { pickAll = !pickAll; pickApp(); };
     var rows = document.querySelectorAll("#m-list [data-pkg]");
     for (var i = 0; i < rows.length; i++) rows[i].onclick = function () {
       B.setSetting("carplayPkg", this.getAttribute("data-pkg")); B.setSetting("carplayName", this.getAttribute("data-name"));
