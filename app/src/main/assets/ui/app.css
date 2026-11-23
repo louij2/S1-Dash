@@ -202,3 +202,11 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 .sp.tall .gwrap { left: 100px; width: 600px; height: 600px; }
 .sp.tall .gnote { top: 260px; }
 .sp.tall .gside { position: absolute; left: 60px; right: 60px; top: 630px; }
+
+/* Key navigation (#1078): the highlighted item, and a hover for the remote's air-mouse pointer */
+.kfocus { outline: 3px solid var(--red); outline-offset: -3px; border-radius: 4px; }
+.sk.kfocus, .btn.kfocus, .cp.kfocus { outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) {
+  .row[data-go]:hover, .row[data-set]:hover, .row[data-mode]:hover, .row[data-pkg]:hover, .row[id]:hover { background: rgba(255,255,255,.06); }
+  .btn:hover, .sk:hover, .cp:hover { border-color: var(--text-dim); color: #fff; }
+}
