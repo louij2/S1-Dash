@@ -88,6 +88,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
   font: inherit; font-size: 20px; padding: 6px 10px; border-radius: 3px; -webkit-user-select: text; user-select: text; }
 .row .btn { margin-left: 12px; padding: 4px 16px; border: 1px solid var(--line); border-radius: 3px; font-size: 20px; color: var(--text); }
 .row .btn:active { border-color: var(--red); background: var(--red-dark); }
+.row .btn.on { border-color: var(--red); background: var(--red-dark); }
 .badge { min-width: 30px; text-align: center; padding: 1px 8px; border-radius: 3px; font-size: 18px; margin-left: auto;
   border: 1px solid var(--line); color: var(--text-dim); }
 .badge.warn { border-color: var(--red); color: #ff8a98; }

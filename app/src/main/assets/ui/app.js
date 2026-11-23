@@ -9,7 +9,7 @@
 
   function demoBridge() {
     var settings = { theme: "s1", ohEnabled: "1", ohHost: "auto", ecuAdapter: "bridge", ecuMac: "",
-      bridgeName: "BLE_TO_ISOTP20", bridgePassword: "", autoLog: "off", carplayPkg: "", carplayName: "", returnBubble: "1", stayConnected: "1", dtcIndicator: "1", boostTarget: "1.8", demo: "1", uiScale: "100" };
+      bridgeName: "BLE_TO_ISOTP20", bridgePassword: "", autoLog: "off", carplayPkg: "", carplayName: "", returnBubble: "1", stayConnected: "1", unitPressure: "bar", unitTemp: "C", unitSpeed: "kmh", unitTorque: "Nm", unitPower: "PS", dtcIndicator: "1", boostTarget: "1.8", demo: "1", uiScale: "100" };
     try { var saved = JSON.parse(localStorage.getItem("s1demo") || "{}"); for (var k in saved) settings[k] = saved[k]; } catch (e) {}
     var q = location.search.replace("?", "").split("&");
     q.forEach(function (p) { var kv = p.split("="); if (kv[0] && kv[0] in settings) settings[kv[0]] = decodeURIComponent(kv[1] || ""); });
@@ -257,16 +257,51 @@
       nm: el.querySelector(".nm"), ns: el.querySelector(".ns"), pk: el.querySelector(".pk"), cur: { m: null, s: null } };
   }
 
+  // ---------- units: values arrive metric (bar, kPa, °C, km/h, Nm, kW); shown in the units chosen in Settings ----------
+  function unitOf(kind) {
+    var d = { pressure: "bar", temp: "C", speed: "kmh", torque: "Nm", power: "PS" }[kind];
+    return settings["unit" + kind.charAt(0).toUpperCase() + kind.slice(1)] || d;
+  }
+  /** [value, label, decimals] for x given in the metric unit src ("bar", "kPa", "°C", "km/h", "Nm"); dec = metric decimals. */
+  function conv(src, x, dec) {
+    var p = unitOf("pressure");
+    if (src === "bar" || src === "kPa") {
+      var bar = src === "kPa" ? (x === undefined ? x : x / 100) : x;
+      var isAbs = src === "kPa"; // kPa values are absolute pressures (MAP and friends); keep their sense
+      if (p === "psi") return [bar === undefined ? bar : bar * 14.5038, "psi", src === "kPa" ? 1 : Math.max(dec - 1, 0)];
+      if (p === "kPa") return [bar === undefined ? bar : bar * 100, "kPa", src === "kPa" ? dec : Math.max(dec - 2, 0)];
+      return [bar, "bar", src === "kPa" ? 2 : dec];
+    }
+    if (src === "°C") return unitOf("temp") === "F" ? [x === undefined ? x : x * 9 / 5 + 32, "°F", dec] : [x, "°C", dec];
+    if (src === "km/h") return unitOf("speed") === "mph" ? [x === undefined ? x : x * 0.621371, "mph", dec] : [x, "km/h", dec];
+    if (src === "Nm") return unitOf("torque") === "lbft" ? [x === undefined ? x : x * 0.737562, "lb-ft", dec] : [x, "Nm", dec];
+    return [x, src, dec];
+  }
+  /** "1.23 bar" style text in the chosen unit. */
+  function fmt(src, x, dec) { var c = conv(src, x, dec); return num(c[0], c[2]) + " " + c[1]; }
+  function P(barValue) { return conv("bar", barValue, 2)[0]; }
+  function T(celsius) { return conv("°C", celsius, 0)[0]; }
+  function powerText(kw) {
+    if (kw === undefined) return "--";
+    var u = unitOf("power"), x = Math.max(0, kw);
+    return u === "kW" ? x.toFixed(0) + " kW" : u === "hp" ? (x * 1.34102).toFixed(0) + " hp" : (x * 1.35962).toFixed(0) + " PS";
+  }
+
   function buildDials() {
     theme = THEMES[settings.theme] || THEMES.s1;
-    var target = parseFloat(settings.boostTarget) || 1.8;
-    dials.L = buildDial("dialL", 0,
-      { min: -1, max: 2, step: 0.5, minor: 0.1, hot: Math.min(1.9, Math.round((target + 0.1) * 10) / 10), dec: 1,
-        labels: function (v) { if (Math.abs(v) < 1e-9) return "0"; var s = (+v.toFixed(1)).toString(); return s.replace(/^(-?)0\./, "$1."); } },
-      { min: 50, max: 130, marks: [50, 90, 130], hot: 130 }, "boost · bar over atm", "coolant °C", target);
+    var target = parseFloat(settings.boostTarget) || 1.8, pu = unitOf("pressure"), fahr = unitOf("temp") === "F";
+    var hotBar = Math.min(1.9, Math.round((target + 0.1) * 10) / 10);
+    var boostScale = pu === "psi" ? { min: -15, max: 30, step: 5, minor: 1, hot: Math.round(P(hotBar)), dec: 0 }
+      : pu === "kPa" ? { min: -100, max: 200, step: 50, minor: 10, hot: Math.round(P(hotBar)), dec: 0 }
+      : { min: -1, max: 2, step: 0.5, minor: 0.1, hot: hotBar, dec: 1,
+          labels: function (v) { if (Math.abs(v) < 1e-9) return "0"; var s = (+v.toFixed(1)).toString(); return s.replace(/^(-?)0\./, "$1."); } };
+    var tl = fahr ? "°F" : "°C";
+    dials.L = buildDial("dialL", 0, boostScale,
+      fahr ? { min: 120, max: 270, marks: [120, 195, 270], hot: 266 } : { min: 50, max: 130, marks: [50, 90, 130], hot: 130 },
+      "boost · " + conv("bar", 0, 2)[1] + " over atm", "coolant " + tl, P(target));
     dials.R = buildDial("dialR", 1,
-      { min: 40, max: 160, step: 20, minor: 5, hot: 130 },
-      { min: 0, max: 150, marks: [0, 75, 150], hot: 150 }, "oil °C", "Haldex °C");
+      fahr ? { min: 100, max: 340, step: 40, minor: 10, hot: 266 } : { min: 40, max: 160, step: 20, minor: 5, hot: 130 },
+      fahr ? { min: 30, max: 300, marks: [30, 165, 300], hot: 300 } : { min: 0, max: 150, marks: [0, 75, 150], hot: 150 }, "oil " + tl, "Haldex " + tl);
   }
 
   // Ease needles toward their targets every frame.
@@ -332,7 +367,8 @@
     for (var i = 0; i < t.length; i++) {
       var k = t[i].getAttribute("data-k"), def = TILE[k], x = v[k];
       t[i].className = "tile " + tileState(k, x);
-      t[i].lastChild.innerHTML = num(x, def[2]) + (def[1] ? "<small>" + def[1] + "</small>" : "");
+      var c = conv(def[1], x, def[2]);
+      t[i].lastChild.innerHTML = num(c[0], c[2]) + (c[1] ? "<small>" + c[1] + "</small>" : "");
     }
   }
 
@@ -451,13 +487,13 @@
     var oe = document.querySelectorAll(".ovr");
     for (i = 0; i < oe.length; i++) { oe[i].textContent = ov; oe[i].style.display = ov ? "block" : "none"; }
     var amb = document.querySelectorAll(".amb"), a = snap.v.ambientBar;
-    for (i = 0; i < amb.length; i++) amb[i].textContent = a !== undefined ? a.toFixed(3) + " bar" : "";
+    for (i = 0; i < amb.length; i++) amb[i].textContent = a !== undefined ? fmt("bar", a, 3) : "";
   }
 
   function disMessage(v, s) {
     if (v.hxTempProt === 1) return ["alarm", "Haldex temp<br>protection active"];
-    if (v.coolant !== undefined && v.coolant >= 110) return ["alarm", "Coolant hot<br>" + v.coolant.toFixed(0) + " °C"];
-    if (v.oil !== undefined && v.oil >= 130) return ["alarm", "Oil hot<br>" + v.oil.toFixed(0) + " °C"];
+    if (v.coolant !== undefined && v.coolant >= 110) return ["alarm", "Coolant hot<br>" + fmt("°C", v.coolant, 0)];
+    if (v.oil !== undefined && v.oil >= 130) return ["alarm", "Oil hot<br>" + fmt("°C", v.oil, 0)];
     if (v.clutchWarn === 1) return ["alarm", "Clutch slipping<br>" + num(v.clutchSlip, 0) + " %"];
     if (v.clutchLoad !== undefined && v.clutchLoad >= 90) return ["alarm", "Clutch hot<br>estimate"];
     if (v.knockAvg !== undefined && v.knockAvg <= -3) return ["warn", "Knock<br>" + v.knockAvg.toFixed(1) + "°"];
@@ -470,18 +506,18 @@
 
   function renderPerf() {
     var v = snap.v, s = snap.s;
-    targets.L.m = v.boost !== undefined ? v.boost : -1;
-    targets.L.s = v.coolant !== undefined ? v.coolant : 50;
-    targets.L.pk = snap.peak;
-    targets.R.m = v.oil !== undefined ? v.oil : 40;
-    targets.R.s = v.hxClutchTemp !== undefined ? v.hxClutchTemp : 0;
+    targets.L.m = v.boost !== undefined ? P(v.boost) : -1e9;          // off the scale = rests at the stop
+    targets.L.s = v.coolant !== undefined ? T(v.coolant) : -1e9;
+    targets.L.pk = snap.peak > 0.05 ? P(snap.peak) : null;
+    targets.R.m = v.oil !== undefined ? T(v.oil) : -1e9;
+    targets.R.s = v.hxClutchTemp !== undefined ? T(v.hxClutchTemp) : -1e9;
     var ovp = overrides();
     $("d-mode").textContent = ovp.forced >= 0 ? MODES[ovp.forced] : v.hxMode !== undefined ? MODES[v.hxMode] || "--" : "--";
     $("d-lock").textContent = ovp.forced >= 0 ? "forced · " + ovp.by : "lock " + num(v.hxLock, 0) + " %";
     var rear = document.querySelectorAll("#perf .rear"), op = v.hxLock !== undefined ? 0.25 + 0.75 * Math.min(100, v.hxLock) / 100 : 0.25;
     for (var i = 0; i < rear.length; i++) rear[i].setAttribute("opacity", op.toFixed(2));
-    $("d-peak").textContent = snap.peak > 0.05 ? snap.peak.toFixed(2) + " bar" : "--";
-    $("d-atm").textContent = v.ambientBar !== undefined ? v.ambientBar.toFixed(3) + " bar" : "--";
+    $("d-peak").textContent = snap.peak > 0.05 ? fmt("bar", snap.peak, 2) : "--";
+    $("d-atm").textContent = v.ambientBar !== undefined ? fmt("bar", v.ambientBar, 3) : "--";
     $("d-hxv").textContent = v.hxVolts !== undefined ? v.hxVolts.toFixed(1) + " V" : "--";
     $("d-clutch").textContent = num(v.clutchLoad, 0) + " %";
     var cb = $("d-clutchbar");
@@ -520,8 +556,8 @@
     $("a-lock").textContent = num(v.hxLock, 0) + " %";
     $("a-lockbar").style.width = (v.hxLock !== undefined ? Math.min(100, v.hxLock) : 0) + "%";
     $("a-target").textContent = num(v.hxLockTarget, 0) + " %";
-    $("a-clutch").textContent = num(v.hxClutchTemp, 0) + " °C";
-    $("a-module").textContent = num(v.hxModuleTemp, 0) + " °C";
+    $("a-clutch").textContent = fmt("°C", v.hxClutchTemp, 0);
+    $("a-module").textContent = fmt("°C", v.hxModuleTemp, 0);
     $("a-volts").textContent = num(v.hxVolts, 1) + " V";
     $("a-prot").textContent = v.hxTempProt === undefined ? "--" : v.hxTempProt ? "ON" : "Off";
     $("a-oh").textContent = snap.s.oh || "--";
@@ -590,9 +626,9 @@
     $("pk-b").textContent = gPeak.b.toFixed(2) + " g"; $("pk-a").textContent = gPeak.a.toFixed(2) + " g";
     // Power from the ECU's own torque figure: P = T x rpm / 9549 kW, shown in PS like the cluster.
     var kw = v.torque !== undefined && v.rpm !== undefined ? v.torque * v.rpm / 9549 : undefined;
-    $("sp-pow").textContent = kw === undefined ? "--" : Math.max(0, kw * 1.35962).toFixed(0) + " PS";
-    $("sp-boost").textContent = num(v.boost, 2) + " bar";
-    $("sp-oil").textContent = num(v.oil, 0) + " °C";
+    $("sp-pow").textContent = powerText(kw);
+    $("sp-boost").textContent = fmt("bar", v.boost, 2);
+    $("sp-oil").textContent = fmt("°C", v.oil, 0);
     $("sp-lock").textContent = num(v.hxLock, 0) + " %";
   }
 
@@ -720,11 +756,24 @@
   }
 
   // Settings
+  // Expected-peak-boost buttons in the chosen pressure unit: [step shown, the same step in bar]. Stored in bar.
+  function boostSteps() {
+    var pu = unitOf("pressure"), s = pu === "psi" ? [1, 0.1] : pu === "kPa" ? [10, 1] : [0.1, 0.01], k = pu === "psi" ? 1 / 14.5038 : pu === "kPa" ? 0.01 : 1;
+    return [-s[0], -s[1], s[1], s[0]].map(function (d) { return [d, +(d * k).toFixed(5)]; });
+  }
+
   function renderSettings() {
     settings = JSON.parse(B.settings());
     var s = snap.s, h = "";
     function radio(key, val, label, sub) {
       return '<div class="row" data-set="' + key + '" data-val="' + val + '"><span class="radio' + (settings[key] === val ? " on" : "") + '"></span>' + label + (sub ? '<span class="sub">' + sub + "</span>" : "") + "</div>";
+    }
+    // One row per quantity, its choices as buttons; the chosen one is highlighted.
+    function unitRow(key, label, opts) {
+      var cur = settings[key] || opts[0][0];
+      return '<div class="row">' + label + '<span class="val"></span>' + opts.map(function (o) {
+        return '<span class="btn' + (o[0] === cur ? " on" : "") + '" data-unit="' + key + '" data-uval="' + o[0] + '">' + o[1] + "</span>";
+      }).join("") + "</div>";
     }
     function toggle(key, label, sub) {
       var on = settings[key] === "1";
@@ -734,10 +783,16 @@
     h += '<div class="row head">Screen size</div>' + radio("uiScale", "100", "Auto fit", "largest that fits this screen") +
       radio("uiScale", "90", "90 %") + radio("uiScale", "80", "80 %", "more data on bigger screens") + radio("uiScale", "70", "70 %");
     h += '<div class="row head">Dials</div>' + toggle("dtcIndicator", "Fault code indicator", "amber engine light in the header") +
-      '<div class="row">Expected peak boost<span class="val">' + (parseFloat(settings.boostTarget) || 1.8).toFixed(2) + ' bar</span>' +
-      [-0.1, -0.01, 0.01, 0.1].map(function (d) { return '<span class="btn" data-step="' + d + '">' + (d < 0 ? "−" : "+") + Math.abs(d) + "</span>"; }).join("") + "</div>";
+      '<div class="row">Expected peak boost<span class="val">' + fmt("bar", parseFloat(settings.boostTarget) || 1.8, 2) + '</span>' +
+      boostSteps().map(function (d) { return '<span class="btn" data-step="' + d[1] + '">' + (d[0] < 0 ? "−" : "+") + Math.abs(d[0]) + "</span>"; }).join("") + "</div>";
     var gears = [];
     try { gears = JSON.parse(B.clutchInfo()).gears; } catch (e) {}
+    h += '<div class="row head">Units</div>' +
+      unitRow("unitPressure", "Pressure", [["bar", "bar"], ["psi", "psi"], ["kPa", "kPa"]]) +
+      unitRow("unitTemp", "Temperature", [["C", "°C"], ["F", "°F"]]) +
+      unitRow("unitSpeed", "Speed", [["kmh", "km/h"], ["mph", "mph"]]) +
+      unitRow("unitTorque", "Torque", [["Nm", "Nm"], ["lbft", "lb-ft"]]) +
+      unitRow("unitPower", "Power", [["PS", "PS"], ["hp", "hp"], ["kW", "kW"]]);
     h += '<div class="row head">Clutch estimate (manual gearbox, no real sensor)</div>' +
       '<div class="row">Learned gears<span class="val">' + (gears.length ? gears.join(" ") : "none yet, cruise in each gear") + '</span><span class="btn" id="clutch-reset">Reset</span></div>';
     h += '<div class="row head">OpenHaldex (Haldex data and modes)</div>' + toggle("ohEnabled", "Use OpenHaldex", "over its Wi-Fi") +
@@ -783,9 +838,15 @@
     if ($("conn-log")) $("conn-log").onclick = showConnLog;
     $("oh-host").onchange = function () { B.setSetting("ohHost", this.value.trim() || "auto"); };
     function stepBoost(d) {
-      var x = Math.max(0.5, Math.min(1.9, Math.round(((parseFloat(settings.boostTarget) || 1.8) + d) * 100) / 100));
-      B.setSetting("boostTarget", x.toFixed(2)); settings.boostTarget = x.toFixed(2); buildDials(); renderSettings();
+      var x = Math.max(0.5, Math.min(1.9, Math.round(((parseFloat(settings.boostTarget) || 1.8) + d) * 1000) / 1000));
+      B.setSetting("boostTarget", x.toFixed(3)); settings.boostTarget = x.toFixed(3); buildDials(); renderSettings();
     }
+    var ub = document.querySelectorAll("#set-list [data-unit]");
+    for (var ui = 0; ui < ub.length; ui++) ub[ui].onclick = function (e) {
+      e.stopPropagation();
+      var k = this.getAttribute("data-unit"), val = this.getAttribute("data-uval");
+      B.setSetting(k, val); settings[k] = val; buildDials(); renderSettings();
+    };
     var steps = document.querySelectorAll("#set-list [data-step]");
     for (i = 0; i < steps.length; i++) steps[i].onclick = function (e) { e.stopPropagation(); stepBoost(parseFloat(this.getAttribute("data-step"))); };
     $("pick-dev").onclick = function (e) { e.stopPropagation(); pickDevice(); };

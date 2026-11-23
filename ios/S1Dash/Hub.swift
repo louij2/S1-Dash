@@ -22,6 +22,11 @@ final class Hub {
         "carplayPkg": "",           // Android head unit only (#1060)
         "carplayName": "",
         "returnBubble": "0",
+        "unitPressure": "bar",      // what the screens show; logs stay metric
+        "unitTemp": "C",
+        "unitSpeed": "kmh",
+        "unitTorque": "Nm",
+        "unitPower": "PS",
         "demo": "0",
         "uiScale": "100",
     ]
