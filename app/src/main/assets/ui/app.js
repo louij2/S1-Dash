@@ -9,7 +9,7 @@
 
   function demoBridge() {
     var settings = { theme: "s1", ohEnabled: "1", ohHost: "auto", ecuAdapter: "bridge", ecuMac: "",
-      bridgeName: "BLE_TO_ISOTP20", bridgePassword: "", autoLog: "off", carplayPkg: "", carplayName: "", returnBubble: "1", stayConnected: "1", permPrompted: "", mediaKeysFlip: "0", unitPressure: "bar", unitTemp: "C", unitSpeed: "kmh", unitTorque: "Nm", unitPower: "PS", dtcIndicator: "1", boostTarget: "1.8", demo: "1", uiScale: "100" };
+      bridgeName: "BLE_TO_ISOTP20", bridgePassword: "", autoLog: "off", carplayPkg: "", carplayName: "", returnBubble: "1", stayConnected: "1", permPrompted: "", mediaKeysFlip: "0", needleFeel: "smooth", unitPressure: "bar", unitTemp: "C", unitSpeed: "kmh", unitTorque: "Nm", unitPower: "PS", dtcIndicator: "1", boostTarget: "1.8", demo: "1", uiScale: "100" };
     try { var saved = JSON.parse(localStorage.getItem("s1demo") || "{}"); for (var k in saved) settings[k] = saved[k]; } catch (e) {}
     var q = location.search.replace("?", "").split("&");
     q.forEach(function (p) { var kv = p.split("="); if (kv[0] && kv[0] in settings) settings[kv[0]] = decodeURIComponent(kv[1] || ""); });
@@ -308,12 +308,27 @@
 
   // Ease needles toward their targets every frame.
   var targets = { L: { m: -1, s: 50, pk: null }, R: { m: 40, s: 0 } };
-  function animate() {
+  // Weighted needles: the target angle is lightly filtered (readings arrive at ~10 Hz with noise),
+  // then a critically damped spring moves the needle, so it accelerates and settles without
+  // overshoot like a real gauge. w = natural frequency (rad/s), lp = target filter time (s).
+  var NEEDLE = { smooth: { w: 7, lp: 0.12 }, sport: { w: 14, lp: 0.05 } };
+  var lastFrame = 0;
+  function stepNeedle(cur, k, target, dt, feel) {
+    if (cur[k] === null) { cur[k] = target; cur[k + "v"] = 0; cur[k + "f"] = target; return; }
+    var f = cur[k + "f"] + (target - cur[k + "f"]) * (1 - Math.exp(-dt / feel.lp));
+    var acc = feel.w * feel.w * (f - cur[k]) - 2 * feel.w * cur[k + "v"];
+    cur[k + "v"] += acc * dt;
+    cur[k] += cur[k + "v"] * dt;
+    cur[k + "f"] = f;
+  }
+  function animate(now) {
+    var dt = lastFrame && now ? Math.min(0.05, Math.max(0.001, (now - lastFrame) / 1000)) : 1 / 60;
+    lastFrame = now || 0;
+    var feel = NEEDLE[settings.needleFeel] || NEEDLE.smooth;
     ["L", "R"].forEach(function (k) {
       var d = dials[k]; if (!d) return;
-      var tm = d.ang(targets[k].m), ts = d.sang(targets[k].s);
-      d.cur.m = d.cur.m === null ? tm : d.cur.m + (tm - d.cur.m) * 0.3;
-      d.cur.s = d.cur.s === null ? ts : d.cur.s + (ts - d.cur.s) * 0.3;
+      stepNeedle(d.cur, "m", d.ang(targets[k].m), dt, feel);
+      stepNeedle(d.cur, "s", d.sang(targets[k].s), dt, feel);
       d.nm.setAttribute("transform", "rotate(" + d.cur.m.toFixed(2) + " " + C + " " + C + ")");
       d.ns.setAttribute("transform", "rotate(" + d.cur.s.toFixed(2) + " " + SX + " " + SY + ")");
       if (targets[k].pk !== undefined && targets[k].pk !== null && targets[k].pk > 0.05) {
@@ -822,6 +837,7 @@
       boostSteps().map(function (d) { return '<span class="btn" data-step="' + d[1] + '">' + (d[0] < 0 ? "−" : "+") + Math.abs(d[0]) + "</span>"; }).join("") + "</div>";
     var gears = [];
     try { gears = JSON.parse(B.clutchInfo()).gears; } catch (e) {}
+    h += unitRow("needleFeel", "Needle feel", [["smooth", "Smooth"], ["sport", "Sport"]]);
     h += '<div class="row head">Units</div>' +
       unitRow("unitPressure", "Pressure", [["bar", "bar"], ["psi", "psi"], ["kPa", "kPa"]]) +
       unitRow("unitTemp", "Temperature", [["C", "°C"], ["F", "°F"]]) +
