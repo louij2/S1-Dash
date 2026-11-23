@@ -9,7 +9,7 @@
 
   function demoBridge() {
     var settings = { theme: "s1", ohEnabled: "1", ohHost: "auto", ecuAdapter: "bridge", ecuMac: "",
-      bridgeName: "BLE_TO_ISOTP20", bridgePassword: "", autoLog: "off", carplayPkg: "", carplayName: "", returnBubble: "1", stayConnected: "1", permPrompted: "", unitPressure: "bar", unitTemp: "C", unitSpeed: "kmh", unitTorque: "Nm", unitPower: "PS", dtcIndicator: "1", boostTarget: "1.8", demo: "1", uiScale: "100" };
+      bridgeName: "BLE_TO_ISOTP20", bridgePassword: "", autoLog: "off", carplayPkg: "", carplayName: "", returnBubble: "1", stayConnected: "1", permPrompted: "", mediaKeysFlip: "0", unitPressure: "bar", unitTemp: "C", unitSpeed: "kmh", unitTorque: "Nm", unitPower: "PS", dtcIndicator: "1", boostTarget: "1.8", demo: "1", uiScale: "100" };
     try { var saved = JSON.parse(localStorage.getItem("s1demo") || "{}"); for (var k in saved) settings[k] = saved[k]; } catch (e) {}
     var q = location.search.replace("?", "").split("&");
     q.forEach(function (p) { var kv = p.split("="); if (kv[0] && kv[0] in settings) settings[kv[0]] = decodeURIComponent(kv[1] || ""); });
@@ -378,6 +378,7 @@
   var stack = [];
   var current = null;
   function go(id, noPush) {
+    if (typeof clearFocus === "function") clearFocus();
     if (current && !noPush && current !== id) stack.push(current);
     var s = document.querySelectorAll(".screen");
     for (var i = 0; i < s.length; i++) s[i].className = s[i].className.replace(/\s*on\b/, "") + (s[i].id === id ? " on" : "");
@@ -422,7 +423,7 @@
     $("m-ok").textContent = okLabel || "OK"; $("m-ok").style.display = onOk ? "block" : "none";
     modalOk = onOk; $("modal").className = "modal on";
   }
-  function closeModal() { $("modal").className = "modal"; modalOk = null; }
+  function closeModal() { $("modal").className = "modal"; modalOk = null; keyTester = false; }
   $("m-cancel").onclick = closeModal;
   $("m-ok").onclick = function () { var f = modalOk; closeModal(); if (f) f(); };
 
@@ -851,6 +852,9 @@
         toggle("returnBubble", "Floating S1 button", "over CarPlay and other apps: tap to come back, drag to move");
     }
     if (typeof B.connLog === "function") h += '<div class="row head">Connections</div><div class="row" id="conn-log">Connection log<span class="val">OpenHaldex and ECU, with times</span><span class="chev">›</span></div>';
+    h += '<div class="row head">Controls</div>' +
+      '<div class="row" id="key-tester">Key tester<span class="val">press each MMI, wheel and remote button</span><span class="chev">›</span></div>' +
+      (settings.mediaKeysFlip !== undefined ? toggle("mediaKeysFlip", "Wheel next / previous flips S1 Dash screens", "only while S1 Dash is in front; off = they skip tracks") : "");
     if (typeof B.permState === "function") h += '<div class="row head" id="perm-head">Permissions</div>' + permRows();
     h += '<div class="row head">Other</div>' +
       (settings.stayConnected !== undefined ? toggle("stayConnected", "Stay connected in the background", "OpenHaldex and the dongle keep going behind CarPlay; a notification shows it. To use SimosTools, open it from S1 Dash") : "") +
@@ -868,6 +872,7 @@
     if ($("br-pass")) $("br-pass").onchange = function () { B.setSetting("bridgePassword", this.value.trim()); };
     if ($("pick-cp")) $("pick-cp").onclick = pickApp;
     if ($("conn-log")) $("conn-log").onclick = showConnLog;
+    $("key-tester").onclick = openKeyTester;
     var pb = document.querySelectorAll("#set-list [data-perm]");
     for (var pi = 0; pi < pb.length; pi++) pb[pi].onclick = function (e) { e.stopPropagation(); B.askPerm(this.getAttribute("data-perm")); };
     $("oh-host").onchange = function () { B.setSetting("ohHost", this.value.trim() || "auto"); };
@@ -955,6 +960,12 @@
 
   var ticks = 0;
   function render() {
+    renderScreens();
+    // Screens redraw their rows' classes; keep the key highlight on (or drop it if its element was replaced).
+    if (kfocus) { if (!document.body.contains(kfocus)) kfocus = null; else if (!kfocus.classList.contains("kfocus")) kfocus.classList.add("kfocus"); }
+  }
+
+  function renderScreens() {
     ticks++;
     renderCommon();
     if (current === "perf") renderPerf();
@@ -1011,6 +1022,101 @@
     first = (location.search.match(/screen=(\w+)/) || [])[1] || (saved !== "settings" && saved) || "perf";
   } catch (e) {}
   if (!$(first)) first = "perf";
+  // ---------- keys: remote, MMI knob, steering wheel (#1078) ----------
+  // The car's controls reach the Tbox through CarPlay as ordinary key events, like a remote's.
+  // Arrows / Tab / the knob move a highlight, OK / Enter presses, Back / Escape goes back.
+  // Touch keeps working; the highlight shows only after a key press.
+  var kfocus = null, keyLog = [], keyTester = false, nativeKeys = false;
+  var MAIN_SCREENS = ["perf", "awd", "engine", "sport"];
+  var FOCUSABLE = '.row[data-go], .row[data-set], .row[data-mode], .row[data-pkg], .row[data-mac], .row[id], .btn, .sk, .cp, [data-go], #m-ok, #m-cancel, #dialL, .tick';
+  function modalOpen() { return $("modal").className.indexOf("on") >= 0; }
+  function focusables() {
+    var root = modalOpen() ? $("modal") : $(current);
+    if (!root) return [];
+    var els = Array.prototype.slice.call(root.querySelectorAll(FOCUSABLE)).filter(function (e) {
+      var r = e.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 && e.style.display !== "none" && !e.classList.contains("dim");
+    });
+    // The screen's own items first, the top bar's chips (faults, CarPlay) last: the first key lands on content.
+    function inHdr(e) { return !!(e.closest && e.closest(".hdr")); }
+    return els.filter(function (e) { return !inHdr(e); }).concat(els.filter(inHdr));
+  }
+  function setFocus(e) {
+    if (kfocus) kfocus.classList.remove("kfocus");
+    kfocus = e;
+    if (e) { e.classList.add("kfocus"); try { e.scrollIntoView({ block: "nearest" }); } catch (x) {} }
+  }
+  function clearFocus() { setFocus(null); }
+  /** Nearest focusable in a direction (dx, dy = -1/0/1), by distance along it plus twice the sideways offset. */
+  function moveFocus(dx, dy) {
+    var list = focusables();
+    if (!list.length) return false;
+    if (!kfocus || list.indexOf(kfocus) < 0) { setFocus(list[0]); return true; }
+    var a = kfocus.getBoundingClientRect(), ax = a.left + a.width / 2, ay = a.top + a.height / 2, best = null, bs = 1e9;
+    list.forEach(function (e) {
+      if (e === kfocus) return;
+      var r = e.getBoundingClientRect(), ddx = r.left + r.width / 2 - ax, ddy = r.top + r.height / 2 - ay;
+      var along = dx ? ddx * dx : ddy * dy;
+      if (along <= 2) return;
+      var score = along + 2 * (dx ? Math.abs(ddy) : Math.abs(ddx));
+      if (score < bs) { bs = score; best = e; }
+    });
+    if (best) setFocus(best);
+    return !!best;
+  }
+  /** Tab / knob turns: the next or previous one in screen order. */
+  function stepFocus(d) {
+    var list = focusables();
+    if (!list.length) return;
+    var i = kfocus ? list.indexOf(kfocus) : -1;
+    setFocus(list[(i + d + list.length) % list.length]);
+  }
+  /** Left / right on a main screen with nothing further that way, or wheel next / previous: flip screens. */
+  window.flipScreen = function (d) {
+    var i = MAIN_SCREENS.indexOf(current);
+    clearFocus();
+    go(i < 0 ? "perf" : MAIN_SCREENS[(i + d + MAIN_SCREENS.length) % MAIN_SCREENS.length], true);
+  };
+  function keyName(e) { return e.key + (e.code && e.code !== e.key ? " (" + e.code + ")" : ""); }
+  function logKey(name, from) {
+    keyLog.unshift(new Date().toTimeString().slice(0, 8) + "  " + name + (from ? "  ·  " + from : ""));
+    if (keyLog.length > 12) keyLog.pop();
+    if (keyTester) renderKeyTester();
+  }
+  /** Every key Android gets, with the device it came from, for the key tester. */
+  window.onNativeKey = function (code, name, device) { nativeKeys = true; logKey(name + " " + code, device); };
+  function renderKeyTester() {
+    $("m-list").innerHTML = keyLog.length ? keyLog.map(function (l) { return '<div class="row" style="font-size:17px">' + esc(l) + "</div>"; }).join("")
+      : '<div class="row dim">Press a button…</div>';
+    $("m-list").style.display = "block";
+  }
+  function openKeyTester() {
+    keyLog = []; keyTester = true;
+    openModal("Key tester", "Press each MMI, steering-wheel and remote button once. Newest first. Back or Cancel closes.", "", null, null);
+    renderKeyTester();
+  }
+  document.addEventListener("keydown", function (e) {
+    if (!nativeKeys) logKey(keyName(e), "");
+    if (keyTester) { if (e.key === "Escape" || e.key === "Backspace" || e.key === "GoBack") { closeModal(); e.preventDefault(); } return; }
+    var t = e.target && e.target.tagName;
+    if (t === "INPUT" || t === "TEXTAREA") { if (e.key === "Escape") e.target.blur(); return; }
+    var k = e.key, handled = true, first = !kfocus;
+    if (k === "ArrowDown") { if (!first) moveFocus(0, 1); else moveFocus(0, 0); }
+    else if (k === "ArrowUp") { if (!first) moveFocus(0, -1); else moveFocus(0, 0); }
+    else if (k === "ArrowRight" || k === "ArrowLeft") {
+      var d = k === "ArrowRight" ? 1 : -1;
+      if (first) moveFocus(0, 0);
+      else if (!moveFocus(d, 0) && !modalOpen() && MAIN_SCREENS.indexOf(current) >= 0) window.flipScreen(d);
+    }
+    else if (k === "Tab") stepFocus(e.shiftKey ? -1 : 1);
+    else if (k === "Enter" || k === " " || k === "Select") { if (kfocus) kfocus.click(); else moveFocus(0, 0); }
+    else if (k === "Escape" || k === "Backspace" || k === "GoBack" || k === "BrowserBack") { clearFocus(); window.goBack(); }
+    else handled = false;
+    if (handled) e.preventDefault();
+  }, true);
+  // A touch or click puts the highlight away; it comes back with the next key.
+  document.addEventListener("pointerdown", function (e) { if (e.pointerType !== "mouse") clearFocus(); }, true);
+
   go(first, true);
   tick();
   setTimeout(promptPerms, 2500);

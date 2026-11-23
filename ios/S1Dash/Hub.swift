@@ -27,6 +27,7 @@ final class Hub {
         "unitSpeed": "kmh",
         "unitTorque": "Nm",
         "unitPower": "PS",
+        "mediaKeysFlip": "0",       // Android head unit only
         "demo": "0",
         "uiScale": "100",
     ]
