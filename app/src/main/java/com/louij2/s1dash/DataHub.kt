@@ -58,6 +58,7 @@ object DataHub {
         "unitSpeed" to "kmh",         // kmh | mph
         "unitTorque" to "Nm",         // Nm | lbft
         "unitPower" to "PS",          // PS | hp | kW
+        "permPrompted" to "",         // which missing permissions the start-up prompt already asked about
         "demo" to "0",
         "uiScale" to "100",           // percent of the largest size that fits the screen
     )

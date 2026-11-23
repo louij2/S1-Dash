@@ -9,7 +9,7 @@
 
   function demoBridge() {
     var settings = { theme: "s1", ohEnabled: "1", ohHost: "auto", ecuAdapter: "bridge", ecuMac: "",
-      bridgeName: "BLE_TO_ISOTP20", bridgePassword: "", autoLog: "off", carplayPkg: "", carplayName: "", returnBubble: "1", stayConnected: "1", unitPressure: "bar", unitTemp: "C", unitSpeed: "kmh", unitTorque: "Nm", unitPower: "PS", dtcIndicator: "1", boostTarget: "1.8", demo: "1", uiScale: "100" };
+      bridgeName: "BLE_TO_ISOTP20", bridgePassword: "", autoLog: "off", carplayPkg: "", carplayName: "", returnBubble: "1", stayConnected: "1", permPrompted: "", unitPressure: "bar", unitTemp: "C", unitSpeed: "kmh", unitTorque: "Nm", unitPower: "PS", dtcIndicator: "1", boostTarget: "1.8", demo: "1", uiScale: "100" };
     try { var saved = JSON.parse(localStorage.getItem("s1demo") || "{}"); for (var k in saved) settings[k] = saved[k]; } catch (e) {}
     var q = location.search.replace("?", "").split("&");
     q.forEach(function (p) { var kv = p.split("="); if (kv[0] && kv[0] in settings) settings[kv[0]] = decodeURIComponent(kv[1] || ""); });
@@ -53,7 +53,9 @@
         if (all) l.unshift({ pkg: "com.carlinkit.carplay", name: "CarPlay", carplay: true, system: true });
         return JSON.stringify(l);
       },
-      openApp: function () { return true; }, overlayAllowed: function () { return /[?&]overlay/.test(location.search); }, askOverlay: function () {},
+      openApp: function () { return true; },
+      permState: function () { var o = { overlay: /[?&]overlay/.test(location.search), notif: true, battery: /[?&]battery/.test(location.search) }; return JSON.stringify(o); },
+      askPerm: function () {}, overlayAllowed: function () { return /[?&]overlay/.test(location.search); }, askOverlay: function () {},
       connLog: function () { return "21 Nov 10:00:01  sources started\n21 Nov 10:00:02  OpenHaldex: connected\n21 Nov 10:00:03  ECU: connected (SimosTools dongle)\n21 Nov 10:04:12  ECU: BLE link dropped (status 8: link timeout, the radio lost the dongle), asking again"; },
       calState: function () {
         var o = { state: cal.state, message: "", slots: cal.slots };
@@ -756,6 +758,38 @@
   }
 
   // Settings
+  // ---------- Android permissions the optional features need (#1060, #1061) ----------
+  var PERMS = {
+    overlay: ["Floating S1 button", "display over other apps, to come back from CarPlay"],
+    notif: ["Notifications", "shows S1 Dash staying connected in the background, with Disconnect"],
+    battery: ["Battery: not restricted", "otherwise Android may stop S1 Dash behind CarPlay"],
+    bluetooth: ["Bluetooth (nearby devices)", "to reach the ECU dongle"]
+  };
+  function permState() { try { return JSON.parse(B.permState()); } catch (e) { return {}; } }
+  function missingPerms() { var st = permState(); return Object.keys(PERMS).filter(function (k) { return st[k] === false; }); }
+  function permRows() {
+    var st = permState(), keys = Object.keys(PERMS).filter(function (k) { return st[k] !== undefined; });
+    if (!keys.length) return '<div class="row dim">Nothing needed for the features that are on</div>';
+    return keys.map(function (k) {
+      return '<div class="row' + (st[k] ? "" : " alert") + '">' + PERMS[k][0] + '<span class="sub">' + PERMS[k][1] + "</span>" +
+        (st[k] ? '<span class="val">allowed</span>' : '<span class="val"></span><span class="btn" data-perm="' + k + '">Grant…</span>') + "</div>";
+    }).join("");
+  }
+  // Back from Android's settings, or after a permission prompt: show the new state.
+  window.permsChanged = function () { if (current === "settings") renderSettings(); };
+  // Once per set of missing permissions: offer to set them up, so nothing silently doesn't work.
+  function promptPerms() {
+    if (typeof B.permState !== "function") return;
+    var miss = missingPerms(), sig = miss.slice().sort().join(",");
+    if (!miss.length || settings.permPrompted === sig || $("modal").className.indexOf("on") >= 0) return;
+    B.setSetting("permPrompted", sig); settings.permPrompted = sig;
+    var list = miss.map(function (k) { return '<div class="row">' + PERMS[k][0] + '<span class="sub">' + PERMS[k][1] + "</span></div>"; }).join("");
+    openModal("Android permissions needed", "Some features you have on need a permission. Grant them in Settings › Permissions.", list, "Set up", function () {
+      go("settings");
+      setTimeout(function () { var h = $("perm-head"); if (h) h.scrollIntoView(); }, 50);
+    });
+  }
+
   // Expected-peak-boost buttons in the chosen pressure unit: [step shown, the same step in bar]. Stored in bar.
   function boostSteps() {
     var pu = unitOf("pressure"), s = pu === "psi" ? [1, 0.1] : pu === "kPa" ? [10, 1] : [0.1, 0.01], k = pu === "psi" ? 1 / 14.5038 : pu === "kPa" ? 0.01 : 1;
@@ -812,13 +846,12 @@
       radio("autoLog", "pedal", "Auto-record: pedal over 70 %") +
       radio("autoLog", "cruise", "Auto-record: cruise held");
     if (canSwitch()) {
-      var ovOk = B.overlayAllowed();
       h += '<div class="row head">CarPlay switch</div>' +
         '<div class="row">CarPlay app<span class="val">' + esc(settings.carplayName || "not set") + '</span><span class="btn" id="pick-cp">Choose…</span></div>' +
-        toggle("returnBubble", "Floating S1 button", "over CarPlay and other apps: tap to come back, drag to move") +
-        (settings.returnBubble === "1" && !ovOk ? '<div class="row alert" id="ask-ov">Allow "draw over other apps" for the floating button<span class="btn">Allow…</span></div>' : "");
+        toggle("returnBubble", "Floating S1 button", "over CarPlay and other apps: tap to come back, drag to move");
     }
     if (typeof B.connLog === "function") h += '<div class="row head">Connections</div><div class="row" id="conn-log">Connection log<span class="val">OpenHaldex and ECU, with times</span><span class="chev">›</span></div>';
+    if (typeof B.permState === "function") h += '<div class="row head" id="perm-head">Permissions</div>' + permRows();
     h += '<div class="row head">Other</div>' +
       (settings.stayConnected !== undefined ? toggle("stayConnected", "Stay connected in the background", "OpenHaldex and the dongle keep going behind CarPlay; a notification shows it. To use SimosTools, open it from S1 Dash") : "") +
       toggle("demo", "Demo mode", "made-up readings, no car needed") +
@@ -834,8 +867,9 @@
     };
     if ($("br-pass")) $("br-pass").onchange = function () { B.setSetting("bridgePassword", this.value.trim()); };
     if ($("pick-cp")) $("pick-cp").onclick = pickApp;
-    if ($("ask-ov")) $("ask-ov").onclick = function () { B.askOverlay(); };
     if ($("conn-log")) $("conn-log").onclick = showConnLog;
+    var pb = document.querySelectorAll("#set-list [data-perm]");
+    for (var pi = 0; pi < pb.length; pi++) pb[pi].onclick = function (e) { e.stopPropagation(); B.askPerm(this.getAttribute("data-perm")); };
     $("oh-host").onchange = function () { B.setSetting("ohHost", this.value.trim() || "auto"); };
     function stepBoost(d) {
       var x = Math.max(0.5, Math.min(1.9, Math.round(((parseFloat(settings.boostTarget) || 1.8) + d) * 1000) / 1000));
@@ -979,6 +1013,7 @@
   if (!$(first)) first = "perf";
   go(first, true);
   tick();
+  setTimeout(promptPerms, 2500);
   setInterval(tick, 100);
   requestAnimationFrame(animate);
 })();

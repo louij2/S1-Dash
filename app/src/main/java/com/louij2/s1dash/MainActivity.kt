@@ -67,8 +67,12 @@ class MainActivity : Activity() {
         super.onStop()
     }
 
+    /** Lets the UI re-read the permission states (back from Android's settings, or after a prompt). */
+    private fun permsChanged() = web.evaluateJavascript("window.permsChanged && window.permsChanged()", null)
+
     override fun onResume() {
         super.onResume()
+        permsChanged()
         hideSystemBars()
         // Back from SimosTools: take the dongle again. Not after a flash hand-off,
         // which says "paused for flash" until the user says the flash is over.
@@ -127,6 +131,7 @@ class MainActivity : Activity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (grantResults.any { it == PackageManager.PERMISSION_GRANTED }) DataHub.restartSources()
+        permsChanged()
     }
 
     inner class Bridge {
@@ -188,6 +193,10 @@ class MainActivity : Activity() {
             }
             return true
         }
+
+        /** Which optional-feature permissions are granted (#1060, #1061). */
+        @JavascriptInterface fun permState(): String = Perms.state(this@MainActivity)
+        @JavascriptInterface fun askPerm(which: String) = runOnUiThread { Perms.ask(this@MainActivity, which) }
 
         @JavascriptInterface fun overlayAllowed(): Boolean = ReturnBubble.allowed(this@MainActivity)
 
