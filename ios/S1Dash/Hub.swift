@@ -29,6 +29,14 @@ final class Hub {
         "unitPower": "PS",
         "mediaKeysFlip": "0",       // Android head unit only
         "needleFeel": "smooth",
+        "dialL": "boost",
+        "dialLs": "coolant",
+        "dialR": "oil",
+        "dialRs": "hxClutchTemp",
+        "cen1": "peak",
+        "cen2": "atm",
+        "cen3": "hxVolts",
+        "cen4": "clutchLoad",
         "demo": "0",
         "uiScale": "100",
     ]

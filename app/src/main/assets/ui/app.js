@@ -9,7 +9,7 @@
 
   function demoBridge() {
     var settings = { theme: "s1", ohEnabled: "1", ohHost: "auto", ecuAdapter: "bridge", ecuMac: "",
-      bridgeName: "BLE_TO_ISOTP20", bridgePassword: "", autoLog: "off", carplayPkg: "", carplayName: "", returnBubble: "1", stayConnected: "1", permPrompted: "", mediaKeysFlip: "0", needleFeel: "smooth", unitPressure: "bar", unitTemp: "C", unitSpeed: "kmh", unitTorque: "Nm", unitPower: "PS", dtcIndicator: "1", boostTarget: "1.8", demo: "1", uiScale: "100" };
+      bridgeName: "BLE_TO_ISOTP20", bridgePassword: "", autoLog: "off", carplayPkg: "", carplayName: "", returnBubble: "1", stayConnected: "1", permPrompted: "", mediaKeysFlip: "0", needleFeel: "smooth", dialL: "boost", dialLs: "coolant", dialR: "oil", dialRs: "hxClutchTemp", cen1: "peak", cen2: "atm", cen3: "hxVolts", cen4: "clutchLoad", unitPressure: "bar", unitTemp: "C", unitSpeed: "kmh", unitTorque: "Nm", unitPower: "PS", dtcIndicator: "1", boostTarget: "1.8", demo: "1", uiScale: "100" };
     try { var saved = JSON.parse(localStorage.getItem("s1demo") || "{}"); for (var k in saved) settings[k] = saved[k]; } catch (e) {}
     var q = location.search.replace("?", "").split("&");
     q.forEach(function (p) { var kv = p.split("="); if (kv[0] && kv[0] in settings) settings[kv[0]] = decodeURIComponent(kv[1] || ""); });
@@ -277,6 +277,7 @@
     if (src === "°C") return unitOf("temp") === "F" ? [x === undefined ? x : x * 9 / 5 + 32, "°F", dec] : [x, "°C", dec];
     if (src === "km/h") return unitOf("speed") === "mph" ? [x === undefined ? x : x * 0.621371, "mph", dec] : [x, "km/h", dec];
     if (src === "Nm") return unitOf("torque") === "lbft" ? [x === undefined ? x : x * 0.737562, "lb-ft", dec] : [x, "Nm", dec];
+    if (src === "kW") { var pw = unitOf("power"); return pw === "kW" ? [x, "kW", 0] : pw === "hp" ? [x === undefined ? x : x * 1.34102, "hp", 0] : [x === undefined ? x : x * 1.35962, "PS", 0]; }
     return [x, src, dec];
   }
   /** "1.23 bar" style text in the chosen unit. */
@@ -289,25 +290,106 @@
     return u === "kW" ? x.toFixed(0) + " kW" : u === "hp" ? (x * 1.34102).toFixed(0) + " hp" : (x * 1.35962).toFixed(0) + " PS";
   }
 
+  // ---------- what the dials and the centre display show (Settings > Dials) ----------
+  // The four defaults (boost, coolant, oil, Haldex clutch) keep their hand-picked scales, also in
+  // psi / kPa / °F; any other choice gets a round-numbered scale in whatever unit is set.
+  function hotBar() { var t = parseFloat(settings.boostTarget) || 1.8; return Math.min(1.9, Math.round((t + 0.1) * 10) / 10); }
+  function fahr() { return unitOf("temp") === "F"; }
+  var DIAL_METRICS = {
+    boost: { name: "Boost", src: "bar", val: function (v) { return v.boost; },
+      cap: function (u) { return "boost · " + u + " over atm"; },
+      big: function () {
+        var pu = unitOf("pressure"), hb = hotBar();
+        return pu === "psi" ? { min: -15, max: 30, step: 5, minor: 1, hot: Math.round(P(hb)), dec: 0 }
+          : pu === "kPa" ? { min: -100, max: 200, step: 50, minor: 10, hot: Math.round(P(hb)), dec: 0 }
+          : { min: -1, max: 2, step: 0.5, minor: 0.1, hot: hb, dec: 1,
+              labels: function (v) { if (Math.abs(v) < 1e-9) return "0"; var s = (+v.toFixed(1)).toString(); return s.replace(/^(-?)0\./, "$1."); } };
+      },
+      small: { min: -1, max: 2, hot: 1.9 } },
+    coolant: { name: "Coolant", src: "°C", val: function (v) { return v.coolant; }, cap: "coolant",
+      big: { min: 40, max: 140, step: 20, minor: 5, hot: 110 },
+      small: function () { return fahr() ? { min: 120, max: 270, marks: [120, 195, 270], hot: 266 } : { min: 50, max: 130, marks: [50, 90, 130], hot: 130 }; } },
+    oil: { name: "Oil", src: "°C", val: function (v) { return v.oil; }, cap: "oil",
+      big: function () { return fahr() ? { min: 100, max: 340, step: 40, minor: 10, hot: 266 } : { min: 40, max: 160, step: 20, minor: 5, hot: 130 }; },
+      small: { min: 40, max: 160, hot: 130 } },
+    hxClutchTemp: { name: "Haldex clutch temp", src: "°C", val: function (v) { return v.hxClutchTemp; }, cap: "Haldex",
+      big: { min: 0, max: 150, step: 25, minor: 5, hot: 120 },
+      small: function () { return fahr() ? { min: 30, max: 300, marks: [30, 165, 300], hot: 300 } : { min: 0, max: 150, marks: [0, 75, 150], hot: 150 }; } },
+    iat: { name: "Intake air", src: "°C", val: function (v) { return v.iat; }, cap: "intake", big: { min: -20, max: 80, step: 20, minor: 5, hot: 60 }, small: { min: 0, max: 80, hot: 60 } },
+    rpm: { name: "Engine speed", src: "rpm ×1000", val: function (v) { return v.rpm === undefined ? v.rpm : v.rpm / 1000; }, cap: "",
+      big: { min: 0, max: 8, step: 1, minor: 0.25, hot: 7 }, small: { min: 0, max: 8, hot: 7 } },
+    map: { name: "MAP (absolute)", src: "kPa", val: function (v) { return v.map; }, cap: "MAP", big: { min: 0, max: 300, step: 50, minor: 10, hot: 290 }, small: { min: 0, max: 300, hot: 290 } },
+    hxLock: { name: "Haldex lock", src: "%", val: function (v) { return v.hxLock; }, cap: "Haldex lock", big: { min: 0, max: 100, step: 20, minor: 5 }, small: { min: 0, max: 100 } },
+    torque: { name: "Torque", src: "Nm", val: function (v) { return v.torque; }, cap: "torque", big: { min: 0, max: 500, step: 100, minor: 20, hot: 450 }, small: { min: 0, max: 500, hot: 450 } },
+    power: { name: "Power (ECU est.)", src: "kW", val: function (v) { return v.torque !== undefined && v.rpm !== undefined ? Math.max(0, v.torque * v.rpm / 9549) : undefined; }, cap: "power",
+      big: { min: 0, max: 300, step: 50, minor: 10, hot: 260 }, small: { min: 0, max: 300, hot: 260 } },
+    ecuSpeed: { name: "Speed", src: "km/h", val: function (v) { return v.ecuSpeed; }, cap: "speed", big: { min: 0, max: 260, step: 40, minor: 10 }, small: { min: 0, max: 260 } },
+    lambda: { name: "Lambda", src: "λ", val: function (v) { return v.lambda; }, cap: "lambda", big: { min: 0.6, max: 1.4, step: 0.2, minor: 0.05, dec: 1 }, small: { min: 0.6, max: 1.4 } },
+    fpDi: { name: "Fuel DI pressure", src: "bar", val: function (v) { return v.fpDi; }, cap: "fuel DI", big: { min: 0, max: 400, step: 50, minor: 10, hot: 350 }, small: { min: 0, max: 400, hot: 350 } },
+    battery: { name: "Battery", src: "V", val: function (v) { return v.battery; }, cap: "battery", big: { min: 10, max: 16, step: 1, minor: 0.25, hot: 15.5 }, small: { min: 10, max: 16, hot: 15.5 } },
+    turbo: { name: "Turbo speed", src: "krpm", val: function (v) { return v.turbo; }, cap: "turbo", big: { min: 0, max: 220, step: 40, minor: 10, hot: 195 }, small: { min: 0, max: 220, hot: 195 } },
+    timing: { name: "Ignition timing", src: "°", val: function (v) { return v.timing; }, cap: "ignition", big: { min: -10, max: 40, step: 10, minor: 2 }, small: { min: -10, max: 40 } }
+  };
+  var DIAL_SLOTS = [["dialL", "Left dial", "boost"], ["dialLs", "Left small dial", "coolant"], ["dialR", "Right dial", "oil"], ["dialRs", "Right small dial", "hxClutchTemp"]];
+  function dialKey(slot) { var d = DIAL_SLOTS.filter(function (x) { return x[0] === slot; })[0]; var k = settings[slot] || d[2]; return DIAL_METRICS[k] ? k : d[2]; }
+  /** A scale with round numbers covering lo..hi, about six labelled steps. */
+  function niceScale(lo, hi, hot) {
+    var raw = (hi - lo) / 6, mag = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10)), step = mag;
+    [1, 2, 2.5, 5, 10].some(function (f) { step = f * mag; return step >= raw; });
+    var min = Math.floor(lo / step) * step, max = Math.ceil(hi / step) * step;
+    return { min: min, max: max, step: step, minor: step / 5, hot: hot, dec: step < 1 ? (step < 0.1 ? 2 : 1) : 0 };
+  }
+  function cv(m, x) { return x === undefined || x === null ? x : conv(m.src, x, 2)[0]; }
+  function bigScale(m) {
+    if (typeof m.big === "function") return m.big();
+    if (conv(m.src, 0, 0)[1] === m.src) return m.big;
+    return niceScale(cv(m, m.big.min), cv(m, m.big.max), cv(m, m.big.hot));
+  }
+  function smallScale(m) {
+    var sc = typeof m.small === "function" ? m.small() : m.small;
+    if (sc.marks) return sc;
+    var conv0 = conv(m.src, 0, 0)[1] !== m.src, lo = conv0 ? cv(m, sc.min) : sc.min, hi = conv0 ? cv(m, sc.max) : sc.max;
+    var n = niceScale(lo, hi);
+    return { min: n.min, max: n.max, marks: [n.min, +((n.min + n.max) / 2).toFixed(n.dec), n.max], hot: sc.hot === undefined ? undefined : (conv0 ? cv(m, sc.hot) : sc.hot) };
+  }
+  function caption(m) { var u = conv(m.src, 0, 0)[1]; return typeof m.cap === "function" ? m.cap(u) : (m.cap ? m.cap + " " : "") + u; }
+
   function buildDials() {
     theme = THEMES[settings.theme] || THEMES.s1;
-    var target = parseFloat(settings.boostTarget) || 1.8, pu = unitOf("pressure"), fahr = unitOf("temp") === "F";
-    var hotBar = Math.min(1.9, Math.round((target + 0.1) * 10) / 10);
-    var boostScale = pu === "psi" ? { min: -15, max: 30, step: 5, minor: 1, hot: Math.round(P(hotBar)), dec: 0 }
-      : pu === "kPa" ? { min: -100, max: 200, step: 50, minor: 10, hot: Math.round(P(hotBar)), dec: 0 }
-      : { min: -1, max: 2, step: 0.5, minor: 0.1, hot: hotBar, dec: 1,
-          labels: function (v) { if (Math.abs(v) < 1e-9) return "0"; var s = (+v.toFixed(1)).toString(); return s.replace(/^(-?)0\./, "$1."); } };
-    var tl = fahr ? "°F" : "°C";
-    dials.L = buildDial("dialL", 0, boostScale,
-      fahr ? { min: 120, max: 270, marks: [120, 195, 270], hot: 266 } : { min: 50, max: 130, marks: [50, 90, 130], hot: 130 },
-      "boost · " + conv("bar", 0, 2)[1] + " over atm", "coolant " + tl, P(target));
-    dials.R = buildDial("dialR", 1,
-      fahr ? { min: 100, max: 340, step: 40, minor: 10, hot: 266 } : { min: 40, max: 160, step: 20, minor: 5, hot: 130 },
-      fahr ? { min: 30, max: 300, marks: [30, 165, 300], hot: 300 } : { min: 0, max: 150, marks: [0, 75, 150], hot: 150 }, "oil " + tl, "Haldex " + tl);
+    var target = parseFloat(settings.boostTarget) || 1.8;
+    var L = DIAL_METRICS[dialKey("dialL")], Ls = DIAL_METRICS[dialKey("dialLs")], Rm = DIAL_METRICS[dialKey("dialR")], Rs = DIAL_METRICS[dialKey("dialRs")];
+    // The expected-peak marker belongs to boost, wherever boost is shown.
+    dials.L = buildDial("dialL", 0, bigScale(L), smallScale(Ls), caption(L), caption(Ls), dialKey("dialL") === "boost" ? P(target) : undefined);
+    dials.R = buildDial("dialR", 1, bigScale(Rm), smallScale(Rs), caption(Rm), caption(Rs), dialKey("dialR") === "boost" ? P(target) : undefined);
   }
 
+  // Centre display lines (Settings > Dials): label + formatted value; line 4 has a bar for percentages.
+  var CENTRE = {
+    peak: ["Peak", "Peak boost", function (v) { return snap.peak > 0.05 ? fmt("bar", snap.peak, 2) : "--"; }],
+    atm: ["Atm", "Atmospheric pressure", function (v) { return v.ambientBar !== undefined ? fmt("bar", v.ambientBar, 3) : "--"; }],
+    hxVolts: ["Haldex", "Haldex volts", function (v) { return v.hxVolts !== undefined ? v.hxVolts.toFixed(1) + " V" : "--"; }],
+    clutchLoad: ["Clutch est.", "Clutch load estimate", function (v) { return num(v.clutchLoad, 0) + " %"; }, "clutchLoad"],
+    boost: ["Boost", "Boost", function (v) { return fmt("bar", v.boost, 2); }],
+    oil: ["Oil", "Oil temp", function (v) { return fmt("°C", v.oil, 0); }],
+    coolant: ["Coolant", "Coolant temp", function (v) { return fmt("°C", v.coolant, 0); }],
+    iat: ["Intake", "Intake air temp", function (v) { return fmt("°C", v.iat, 0); }],
+    hxClutchTemp: ["Haldex °", "Haldex clutch temp", function (v) { return fmt("°C", v.hxClutchTemp, 0); }],
+    hxLock: ["Lock", "Haldex lock", function (v) { return num(v.hxLock, 0) + " %"; }, "hxLock"],
+    power: ["Power", "Power (ECU est.)", function (v) { return powerText(v.torque !== undefined && v.rpm !== undefined ? v.torque * v.rpm / 9549 : undefined); }],
+    torque: ["Torque", "Torque", function (v) { return fmt("Nm", v.torque, 0); }],
+    rpm: ["rpm", "Engine speed", function (v) { return num(v.rpm, 0); }],
+    gear: ["Gear", "Gear", function (v) { return num(v.gear, 0); }],
+    ecuSpeed: ["Speed", "Speed", function (v) { return fmt("km/h", v.ecuSpeed, 0); }],
+    lambda: ["Lambda", "Lambda", function (v) { return num(v.lambda, 2); }],
+    knockAvg: ["Knock", "Knock average", function (v) { return num(v.knockAvg, 1) + "°"; }],
+    battery: ["Volts", "Battery", function (v) { return num(v.battery, 1) + " V"; }],
+    pedal: ["Pedal", "Pedal", function (v) { return num(v.pedal, 0) + " %"; }, "pedal"]
+  };
+  var CENTRE_SLOTS = [["cen1", "Centre line 1", "peak"], ["cen2", "Centre line 2", "atm"], ["cen3", "Centre line 3", "hxVolts"], ["cen4", "Centre line 4", "clutchLoad"]];
+  function centreKey(i) { var d = CENTRE_SLOTS[i]; var k = settings[d[0]] || d[2]; return CENTRE[k] ? k : d[2]; }
+
   // Ease needles toward their targets every frame.
-  var targets = { L: { m: -1, s: 50, pk: null }, R: { m: 40, s: 0 } };
+  var targets = { L: { m: -1, s: 50, pk: null }, R: { m: 40, s: 0, pk: null } };
   // Weighted needles: the target angle is lightly filtered (readings arrive at ~10 Hz with noise),
   // then a critically damped spring moves the needle, so it accelerates and settles without
   // overshoot like a real gauge. w = natural frequency (rad/s), lp = target filter time (s).
@@ -524,23 +606,27 @@
 
   function renderPerf() {
     var v = snap.v, s = snap.s;
-    targets.L.m = v.boost !== undefined ? P(v.boost) : -1e9;          // off the scale = rests at the stop
-    targets.L.s = v.coolant !== undefined ? T(v.coolant) : -1e9;
-    targets.L.pk = snap.peak > 0.05 ? P(snap.peak) : null;
-    targets.R.m = v.oil !== undefined ? T(v.oil) : -1e9;
-    targets.R.s = v.hxClutchTemp !== undefined ? T(v.hxClutchTemp) : -1e9;
+    function tgt(slot) { var m = DIAL_METRICS[dialKey(slot)], x = cv(m, m.val(v)); return x === undefined || x === null ? -1e9 : x; } // -1e9 = rests at the stop
+    targets.L.m = tgt("dialL"); targets.L.s = tgt("dialLs");
+    targets.R.m = tgt("dialR"); targets.R.s = tgt("dialRs");
+    var pk = snap.peak > 0.05 ? P(snap.peak) : null;
+    targets.L.pk = dialKey("dialL") === "boost" ? pk : null;
+    targets.R.pk = dialKey("dialR") === "boost" ? pk : null;
     var ovp = overrides();
     $("d-mode").textContent = ovp.forced >= 0 ? MODES[ovp.forced] : v.hxMode !== undefined ? MODES[v.hxMode] || "--" : "--";
     $("d-lock").textContent = ovp.forced >= 0 ? "forced · " + ovp.by : "lock " + num(v.hxLock, 0) + " %";
     var rear = document.querySelectorAll("#perf .rear"), op = v.hxLock !== undefined ? 0.25 + 0.75 * Math.min(100, v.hxLock) / 100 : 0.25;
     for (var i = 0; i < rear.length; i++) rear[i].setAttribute("opacity", op.toFixed(2));
-    $("d-peak").textContent = snap.peak > 0.05 ? fmt("bar", snap.peak, 2) : "--";
-    $("d-atm").textContent = v.ambientBar !== undefined ? fmt("bar", v.ambientBar, 3) : "--";
-    $("d-hxv").textContent = v.hxVolts !== undefined ? v.hxVolts.toFixed(1) + " V" : "--";
-    $("d-clutch").textContent = num(v.clutchLoad, 0) + " %";
-    var cb = $("d-clutchbar");
-    cb.style.width = (v.clutchLoad !== undefined ? Math.min(100, v.clutchLoad) : 0) + "%";
-    cb.parentNode.className = "cbar " + (v.clutchLoad !== undefined ? clutchState(v.clutchLoad) : "");
+    for (var ci = 0; ci < 4; ci++) {
+      var c = CENTRE[centreKey(ci)];
+      $("d-k" + (ci + 1)).textContent = c[0];
+      $("d-v" + (ci + 1)).textContent = c[2](v);
+    }
+    // The bar under line 4 shows a percentage (clutch load by default), coloured like the clutch warning.
+    var c4 = CENTRE[centreKey(3)], pct = c4[3] ? v[c4[3]] : undefined, cb = $("d-clutchbar");
+    cb.parentNode.style.display = c4[3] ? "" : "none";
+    cb.style.width = (pct !== undefined ? Math.min(100, Math.max(0, pct)) : 0) + "%";
+    cb.parentNode.className = "cbar " + (c4[3] === "clutchLoad" && pct !== undefined ? clutchState(pct) : "");
     var m = disMessage(v, s);
     $("d-msg").className = "msg " + m[0];
     $("d-msg").innerHTML = m[1];
@@ -774,6 +860,25 @@
   }
 
   // Settings
+  // Pickers for Settings > Dials.
+  function pickFrom(title, opts, cur, onPick) {
+    var h = opts.map(function (o) { return '<div class="row' + (o[0] === cur ? " sel" : "") + '" data-pick="' + o[0] + '">' + esc(o[1]) + "</div>"; }).join("");
+    openModal(title, "", h, null, null);
+    var rows = document.querySelectorAll("#m-list [data-pick]");
+    for (var i = 0; i < rows.length; i++) rows[i].onclick = function () { var k = this.getAttribute("data-pick"); closeModal(); onPick(k); };
+  }
+  function pickDial(slot) {
+    var label = DIAL_SLOTS.filter(function (d) { return d[0] === slot; })[0][1];
+    pickFrom(label, Object.keys(DIAL_METRICS).map(function (k) { return [k, DIAL_METRICS[k].name]; }), dialKey(slot), function (k) {
+      B.setSetting(slot, k); settings[slot] = k; buildDials(); renderSettings();
+    });
+  }
+  function pickCentre(i) {
+    pickFrom(CENTRE_SLOTS[i][1], Object.keys(CENTRE).map(function (k) { return [k, CENTRE[k][1]]; }), centreKey(i), function (k) {
+      B.setSetting(CENTRE_SLOTS[i][0], k); settings[CENTRE_SLOTS[i][0]] = k; renderSettings();
+    });
+  }
+
   // ---------- Android permissions the optional features need (#1060, #1061) ----------
   var PERMS = {
     overlay: ["Floating S1 button", "display over other apps, to come back from CarPlay"],
@@ -838,6 +943,9 @@
     var gears = [];
     try { gears = JSON.parse(B.clutchInfo()).gears; } catch (e) {}
     h += unitRow("needleFeel", "Needle feel", [["smooth", "Smooth"], ["sport", "Sport"]]);
+    h += DIAL_SLOTS.map(function (d) { return '<div class="row">' + d[1] + '<span class="val">' + DIAL_METRICS[dialKey(d[0])].name + '</span><span class="btn" data-dslot="' + d[0] + '">Choose…</span></div>'; }).join("") +
+      CENTRE_SLOTS.map(function (d, i) { return '<div class="row">' + d[1] + '<span class="val">' + CENTRE[centreKey(i)][1] + '</span><span class="btn" data-cslot="' + i + '">Choose…</span></div>'; }).join("") +
+      '<div class="row" id="dials-reset">Dials and centre lines back to default<span class="val"></span><span class="btn">Reset</span></div>';
     h += '<div class="row head">Units</div>' +
       unitRow("unitPressure", "Pressure", [["bar", "bar"], ["psi", "psi"], ["kPa", "kPa"]]) +
       unitRow("unitTemp", "Temperature", [["C", "°C"], ["F", "°F"]]) +
@@ -889,6 +997,16 @@
     if ($("pick-cp")) $("pick-cp").onclick = pickApp;
     if ($("conn-log")) $("conn-log").onclick = showConnLog;
     $("key-tester").onclick = openKeyTester;
+    var dsl = document.querySelectorAll("#set-list [data-dslot]");
+    for (var di = 0; di < dsl.length; di++) dsl[di].onclick = function (e) { e.stopPropagation(); pickDial(this.getAttribute("data-dslot")); };
+    var csl = document.querySelectorAll("#set-list [data-cslot]");
+    for (var cj = 0; cj < csl.length; cj++) csl[cj].onclick = function (e) { e.stopPropagation(); pickCentre(+this.getAttribute("data-cslot")); };
+    $("dials-reset").onclick = function (e) {
+      e.stopPropagation();
+      DIAL_SLOTS.forEach(function (d) { B.setSetting(d[0], d[2]); settings[d[0]] = d[2]; });
+      CENTRE_SLOTS.forEach(function (d) { B.setSetting(d[0], d[2]); settings[d[0]] = d[2]; });
+      buildDials(); renderSettings();
+    };
     var pb = document.querySelectorAll("#set-list [data-perm]");
     for (var pi = 0; pi < pb.length; pi++) pb[pi].onclick = function (e) { e.stopPropagation(); B.askPerm(this.getAttribute("data-perm")); };
     $("oh-host").onchange = function () { B.setSetting("ohHost", this.value.trim() || "auto"); };
