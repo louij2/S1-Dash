@@ -28,6 +28,7 @@ final class Hub {
         "unitTorque": "Nm",
         "unitPower": "PS",
         "mediaKeysFlip": "0",       // Android head unit only
+        "needleFeel": "smooth",
         "demo": "0",
         "uiScale": "100",
     ]

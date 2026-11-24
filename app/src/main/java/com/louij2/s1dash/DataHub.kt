@@ -60,6 +60,7 @@ object DataHub {
         "unitPower" to "PS",          // PS | hp | kW
         "permPrompted" to "",         // which missing permissions the start-up prompt already asked about
         "mediaKeysFlip" to "0",       // wheel next/previous flip S1 Dash screens while it's in front (#1078)
+        "needleFeel" to "smooth",     // smooth | sport: how the dial needles move
         "demo" to "0",
         "uiScale" to "100",           // percent of the largest size that fits the screen
     )
