@@ -25,6 +25,7 @@ import org.json.JSONObject
  */
 class MainActivity : Activity() {
     private lateinit var web: WebView
+    private var probe: KeyProbe? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -81,6 +82,14 @@ class MainActivity : Activity() {
         // Back from SimosTools: take the dongle again. Not after a flash hand-off,
         // which says "paused for flash" until the user says the flash is over.
         if (DataHub.status["ecu"] == "paused for SimosTools") DataHub.restartSources()
+        web.evaluateJavascript("window.keyProbeResume && window.keyProbeResume()", null)
+    }
+
+    /** Behind CarPlay the buttons belong to the music again: the tester's listeners stop until it's back. */
+    override fun onPause() {
+        probe?.stop()
+        probe = null
+        super.onPause()
     }
 
     @Deprecated("Fine for a single file pick")
@@ -133,6 +142,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        probe?.stop()
         ReturnBubble.hide(this)
         DataHub.Logger.stop()
         DataHub.releaseSources(OWNER)
@@ -223,6 +233,15 @@ class MainActivity : Activity() {
         }
 
         /** Which optional-feature permissions are granted (#1060, #1061). */
+        /** The key tester's extra ears: media session, head-unit broadcasts, system log. Returns what's listening. */
+        @JavascriptInterface fun keyProbe(on: Boolean): String {
+            if (!on) { probe?.stop(); probe = null; return "" }
+            val p = probe ?: KeyProbe(this@MainActivity) { what, from ->
+                runOnUiThread { web.evaluateJavascript("window.onProbe && window.onProbe(${JSONObject.quote(what)}, ${JSONObject.quote(from)})", null) }
+            }
+            probe = p
+            return p.start()
+        }
         @JavascriptInterface fun permState(): String = Perms.state(this@MainActivity)
         @JavascriptInterface fun askPerm(which: String) = runOnUiThread { Perms.ask(this@MainActivity, which) }
 
