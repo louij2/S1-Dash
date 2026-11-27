@@ -172,6 +172,11 @@ class MainActivity : Activity() {
         @JavascriptInterface fun haldexDtcs(): String = DataHub.haldexDtcJson
         @JavascriptInterface fun ohLiveDiag(on: Boolean) { DataHub.openHaldex()?.setLiveDiag(on) }
         @JavascriptInterface fun haldexDtcRead() { DataHub.openHaldex()?.readDtcs() }
+        @JavascriptInterface fun ohBackups(): String = OhBackups.listJson()
+        @JavascriptInterface fun ohBackupsRefresh() = OhBackups.refreshServer()
+        @JavascriptInterface fun ohBackupNow() { DataHub.status["ohBackupMsg"] = "Backing up…"; DataHub.openHaldex()?.backupNow() ?: run { DataHub.status["ohBackupMsg"] = "OpenHaldex is off in Settings" } }
+        @JavascriptInterface fun ohKeepConfig() { DataHub.openHaldex()?.keepConfig() }
+        @JavascriptInterface fun ohRestore(name: String, apPw: String, staPw: String) { DataHub.openHaldex()?.restore(name, apPw, staPw) ?: run { DataHub.status["ohRestore"] = "OpenHaldex is off in Settings" } }
         @JavascriptInterface fun haldexDtcClear() { DataHub.openHaldex()?.clearDtcs() }
         @JavascriptInterface fun ecuDtcs(): String = DataHub.ecuDtcJson
         @JavascriptInterface fun ecuDtcRead() { DataHub.ecu()?.readDtcs() }

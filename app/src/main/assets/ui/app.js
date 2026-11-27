@@ -9,13 +9,19 @@
 
   function demoBridge() {
     var settings = { theme: "s1", ohEnabled: "1", ohHost: "auto", ecuAdapter: "bridge", ecuMac: "",
-      bridgeName: "BLE_TO_ISOTP20", bridgePassword: "", autoLog: "off", carplayPkg: "", carplayName: "", returnBubble: "1", stayConnected: "1", permPrompted: "", mediaKeysFlip: "0", needleFeel: "smooth", dialL: "boost", dialLs: "coolant", dialR: "oil", dialRs: "hxClutchTemp", cen1: "peak", cen2: "atm", cen3: "hxVolts", cen4: "clutchLoad", unitPressure: "bar", unitTemp: "C", unitSpeed: "kmh", unitTorque: "Nm", unitPower: "PS", dtcIndicator: "1", boostTarget: "1.8", demo: "1", uiScale: "100" };
+      bridgeName: "BLE_TO_ISOTP20", bridgePassword: "", autoLog: "off", carplayPkg: "", carplayName: "", returnBubble: "1", stayConnected: "1", permPrompted: "", mediaKeysFlip: "0", needleFeel: "smooth", backupServer: "", dialL: "boost", dialLs: "coolant", dialR: "oil", dialRs: "hxClutchTemp", cen1: "peak", cen2: "atm", cen3: "hxVolts", cen4: "clutchLoad", unitPressure: "bar", unitTemp: "C", unitSpeed: "kmh", unitTorque: "Nm", unitPower: "PS", dtcIndicator: "1", boostTarget: "1.8", demo: "1", uiScale: "100" };
     try { var saved = JSON.parse(localStorage.getItem("s1demo") || "{}"); for (var k in saved) settings[k] = saved[k]; } catch (e) {}
     var q = location.search.replace("?", "").split("&");
     q.forEach(function (p) { var kv = p.split("="); if (kv[0] && kv[0] in settings) settings[kv[0]] = decodeURIComponent(kv[1] || ""); });
     var cal = { state: (location.search.match(/[?&]flash=(\w+)/) || [])[1] || "", slot: 0, slots: [
       { slot: 0, name: "95 RON", box: "8X0906259 B", sha: "4be81c07", last: "2026-11-05 16:40" }, { slot: 1, name: "99 RON", box: "8X0906259 B", sha: "a17d33f0" },
       { slot: 2, name: "95 RON with start-stop", box: "8X0906259 B", sha: "c20e94aa" }, { slot: 3 }, { slot: 4 }] };
+    // ?ohreset pretends OpenHaldex has been reset to factory settings since the last backup.
+    var demoCfg = /[?&]ohreset/.test(location.search) ? JSON.stringify({ at: "2026-11-27T08:12:40Z", changes: "haldexGeneration 1 (was 51), lockArray changed, tcForceMode false (was true), liveDiagEnabled false (was true), and 9 more", count: 13, factory: true }) : "";
+    var demoMsg = "", demoRestore = "";
+    var demoBackups = [{ name: "openhaldex-2026-11-27T08-12-40Z.json", at: "2026-11-27T08:12:40Z", fw: "11.10.0", gen: 51, where: "both" },
+      { name: "openhaldex-2026-11-24T17-02-11Z.json", at: "2026-11-24T17:02:11Z", fw: "11.10.0", gen: 51, where: "both" },
+      { name: "openhaldex-2026-11-13T09-30-00Z-3fa9c2d1e077.json", at: "2026-11-13T09:30:00Z", fw: "11.8.2", gen: 51, where: "server" }];
     var t0 = Date.now(), peak = 0, logging = false, demoSlip = /[?&]slip/.test(location.search), demoGears = [1, 2, 3, 4, 5, 6];
     return {
       snapshot: function () {
@@ -33,7 +39,7 @@
           hxMode: 2, hxLock: 30 + pull * 60, hxLockTarget: 30 + pull * 65, hxClutchTemp: Math.min(70, 30 + t * 0.15 + pull * 6),
           hxModuleTemp: 24, hxFinTemp: 22, hxVolts: 13.9, hxTempProt: 0, dtcEcu: 2, dtcHaldex: 0,
           gLat: Math.sin(t * 0.31) * 0.95, gLon: -pull * 0.45 + Math.max(0, -Math.sin(t * 0.5 + 0.6)) * 0.8 };
-        return JSON.stringify({ v: v, s: { oh: "demo", simos: /[?&]simos/.test(location.search) ? "connected" : undefined, ecu: /[?&]simos/.test(location.search) ? "in use by SimosTools" : /[?&]elm/.test(location.search) ? "connected (ELM327)" : "demo", ecuData: /[?&]elm/.test(location.search) ? "core" : undefined, ecuRate: /[?&]elm/.test(location.search) ? "3.2" : undefined },  peak: /[?&]still/.test(location.search) ? 1.78 : peak, logging: logging, t: Date.now() });
+        return JSON.stringify({ v: v, s: { oh: "demo", simos: /[?&]simos/.test(location.search) ? "connected" : undefined, ecu: /[?&]simos/.test(location.search) ? "in use by SimosTools" : /[?&]elm/.test(location.search) ? "connected (ELM327)" : "demo", ecuData: /[?&]elm/.test(location.search) ? "core" : undefined, ecuRate: /[?&]elm/.test(location.search) ? "3.2" : undefined, ohCfg: demoCfg, ohBackupMsg: demoMsg, ohRestore: demoRestore },  peak: /[?&]still/.test(location.search) ? 1.78 : peak, logging: logging, t: Date.now() });
       },
       settings: function () { return JSON.stringify(settings); },
       setSetting: function (k, v) { settings[k] = v; try { localStorage.setItem("s1demo", JSON.stringify(settings)); } catch (e) {} },
@@ -42,6 +48,10 @@
       clutchInfo: function () { return JSON.stringify({ gears: demoGears }); }, clutchReset: function () { demoGears = []; },
       haldexDtcs: function () { return JSON.stringify({ state: "done", dtcs: [] }); },
       haldexDtcRead: function () {}, haldexDtcClear: function () {},
+      ohBackups: function () { return JSON.stringify({ server: !!settings.backupServer, list: demoBackups }); },
+      ohBackupsRefresh: function () {}, ohKeepConfig: function () { demoCfg = ""; },
+      ohBackupNow: function () { demoMsg = "Backed up. Copy in Downloads/openhaldex-2026-11-27T10-00-00Z.json"; },
+      ohRestore: function () { demoRestore = "Restored ✓"; demoCfg = ""; },
       ecuDtcs: function () { return JSON.stringify({ state: "done", dtcs: [{ code: "P3019-00", active: false, confirmed: true }, { code: "U0155-00", active: false, confirmed: true }] }); },
       ecuDtcRead: function () {}, ecuDtcClear: function () {},
       logStart: function () { logging = true; }, logStop: function () { logging = false; },
@@ -532,6 +542,7 @@
     MODES.forEach(function (m, i) { h += '<div class="row" data-mode="' + i + '"><span class="radio"></span>' + m + (i === 5 ? '<span class="sub">map from OpenHaldex</span>' : "") + "</div>"; });
     h += '<div class="row alert" id="a-modenote" style="display:none"></div>';
     h += '<div class="row alert" id="a-diag" style="display:none"></div>';
+    h += '<div class="row alert" id="a-cfg" style="display:none"></div>';
     $("modes").innerHTML = h;
     var rows = $("modes").children;
     for (var i = 0; i < rows.length; i++) rows[i].onclick = function () {
@@ -683,6 +694,65 @@
     }
     var ova = overrides();
     $("a-ovr").textContent = ova.forced >= 0 ? ova.by : "none";
+    var cw = cfgWarning(), cn = $("a-cfg"), cmsg = cw ? "OpenHaldex settings changed since the backup" + '<span class="btn" id="a-cfg-go" style="white-space:nowrap;margin-left:auto">Fix…</span>' : "";
+    if (cn.getAttribute("data-msg") !== cmsg) {
+      cn.setAttribute("data-msg", cmsg); cn.innerHTML = cmsg; cn.style.display = cmsg ? "" : "none";
+      if ($("a-cfg-go")) $("a-cfg-go").onclick = function (e) { e.stopPropagation(); showCfgWarning(); };
+    }
+  }
+
+  // ---------- OpenHaldex config backups ----------
+  // The app backs the controller's settings up whenever they change a little. A big change
+  // (another generation, many settings at once: a factory reset) isn't saved; it shows here.
+  function cfgWarning() {
+    if (!snap.s.ohCfg) return null;
+    try { return JSON.parse(snap.s.ohCfg); } catch (e) { return null; }
+  }
+  function when(iso) {
+    var d = new Date(iso);
+    if (isNaN(d)) return iso || "?";
+    return d.getDate() + " " + "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(" ")[d.getMonth()] + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+  }
+  function showCfgWarning() {
+    var w = cfgWarning();
+    if (!w) return;
+    openModal(w.factory ? "OpenHaldex looks reset to factory settings" : "OpenHaldex settings changed",
+      w.count + " settings differ from the backup of " + when(w.at) + ": " + w.changes + ". Restore that backup, or keep these settings as the new backup.",
+      '<div class="row" id="cfg-keep">Keep these settings<span class="sub">they’re right; back them up</span></div>', "Restore…", function () { openRestore(); });
+    $("cfg-keep").onclick = function () { B.ohKeepConfig(); closeModal(); };
+  }
+  // Once per warning, whatever screen is up: a reset controller drives differently.
+  var cfgPrompted = "";
+  function promptCfg() {
+    var w = cfgWarning(), sig = w ? w.at + w.changes : "";
+    if (!sig) { cfgPrompted = ""; return; }
+    if (sig === cfgPrompted || modalOpen()) return;
+    cfgPrompted = sig;
+    showCfgWarning();
+  }
+  function openRestore() {
+    var data = { list: [] };
+    try { data = JSON.parse(B.ohBackups()); } catch (e) {}
+    if (B.ohBackupsRefresh) B.ohBackupsRefresh();
+    var where = { here: "on this device", both: "here and on the server", server: "on the server" };
+    var h = data.list.length ? data.list.map(function (b) {
+      return '<div class="row" data-bk="' + esc(b.name) + '">' + when(b.at) + '<span class="sub">generation ' + b.gen + (b.fw ? ", v" + esc(b.fw) : "") + ", " + where[b.where] + "</span></div>";
+    }).join("") : '<div class="row dim">No backups yet. One is made when S1 Dash first reads OpenHaldex.</div>';
+    openModal("Restore OpenHaldex settings", "Newest first. Server backups show once the list has loaded: reopen to refresh.", h, null, null);
+    var rows = document.querySelectorAll("#m-list [data-bk]");
+    for (var i = 0; i < rows.length; i++) rows[i].onclick = function () { confirmRestore(this.getAttribute("data-bk"), this.firstChild.textContent); };
+  }
+  function confirmRestore(name, label) {
+    openModal("Restore the backup of " + label + "?",
+      "This replaces OpenHaldex’s tune, settings and frame edits, like Import on its own page. Wi-Fi names come back where they differ. Passwords aren’t in backups: type them only if they need setting again.",
+      '<div class="row">Home Wi-Fi password<span class="sub">the hotspot OpenHaldex joins</span><input id="rs-sta" type="password" placeholder="leave blank"></div>' +
+      '<div class="row">OpenHaldex Wi-Fi password<span class="sub">its own access point</span><input id="rs-ap" type="password" placeholder="leave blank"></div>',
+      "Restore", function () {
+        var sta = $("rs-sta").value, ap = $("rs-ap").value;
+        if ((sta && sta.length < 8) || (ap && ap.length < 8)) { openModal("Password too short", "Wi-Fi passwords are 8 characters or more. Nothing was changed.", "", null, null); return; }
+        B.ohRestore(name, ap, sta);
+        go("settings");
+      });
   }
 
   // RS mode: g-force circle. gLat + = pushed right (a left turn), gLon + = pushed forward (braking).
@@ -960,6 +1030,16 @@
       '<div class="row">Address<span class="sub">auto finds it, also on this unit’s hotspot</span><input id="oh-host" value="' + esc(settings.ohHost) + '" placeholder="auto"></div>' +
       '<div class="row dim">Using<span class="val" id="st-ohat">' + esc(s.ohAt || "--") + "</span></div>" +
       '<div class="row dim">Status<span class="val" id="st-oh">' + (s.oh || "--") + "</span></div>";
+    if (typeof B.ohBackups === "function") {
+      var bk = { list: [] };
+      try { bk = JSON.parse(B.ohBackups()); } catch (e) {}
+      var nHere = bk.list.filter(function (b) { return b.where !== "server"; }).length, newest = bk.list[0];
+      h += '<div class="row head">OpenHaldex backups</div>' +
+        (cfgWarning() ? '<div class="row alert" id="bk-warn">Settings changed since the backup<span class="btn" style="margin-left:auto">Fix…</span></div>' : "") +
+        '<div class="row">Backups<span class="val">' + (newest ? nHere + " here, newest " + when(newest.at) : "none yet") + '</span><span class="btn" id="bk-now">Back up now</span><span class="btn" id="bk-restore">Restore…</span></div>' +
+        '<div class="row">Backup server<span class="sub">copies go here too, e.g. an s1-logs server</span><input id="bk-server" value="' + esc(settings.backupServer || "") + '" placeholder="this device only"></div>' +
+        '<div class="row dim">Last<span class="val" id="st-bk">' + esc(s.ohRestore || s.ohBackupMsg || "made by itself when the settings change") + "</span></div>";
+    }
     h += '<div class="row head">Engine ECU (Simos18 live data, same set as SimosTools)</div>' +
       radio("ecuAdapter", "none", "None") + radio("ecuAdapter", "bridge", "SimosTools dongle", "BLE ISO-TP bridge") +
       radio("ecuAdapter", "elm", "ELM327 dongle", "Bluetooth Classic only, slower: core dials first. No flashing") +
@@ -1012,6 +1092,12 @@
     var pb = document.querySelectorAll("#set-list [data-perm]");
     for (var pi = 0; pi < pb.length; pi++) pb[pi].onclick = function (e) { e.stopPropagation(); B.askPerm(this.getAttribute("data-perm")); };
     $("oh-host").onchange = function () { B.setSetting("ohHost", this.value.trim() || "auto"); };
+    if ($("bk-now")) {
+      $("bk-now").onclick = function (e) { e.stopPropagation(); B.ohBackupNow(); };
+      $("bk-restore").onclick = function (e) { e.stopPropagation(); openRestore(); };
+      $("bk-server").onchange = function () { B.setSetting("backupServer", this.value.trim()); };
+      if ($("bk-warn")) $("bk-warn").onclick = showCfgWarning;
+    }
     function stepBoost(d) {
       var x = Math.max(0.5, Math.min(1.9, Math.round(((parseFloat(settings.boostTarget) || 1.8) + d) * 1000) / 1000));
       B.setSetting("boostTarget", x.toFixed(3)); settings.boostTarget = x.toFixed(3); buildDials(); renderSettings();
@@ -1104,6 +1190,7 @@
   function renderScreens() {
     ticks++;
     renderCommon();
+    promptCfg();
     if (current === "perf") renderPerf();
     else if (current === "awd") renderAwd();
     else if (current === "sport") renderSport();
@@ -1125,6 +1212,7 @@
       if ($("st-ohat")) $("st-ohat").textContent = snap.s.ohAt || "--";
       if ($("st-ecu")) $("st-ecu").textContent = snap.s.ecu || "--";
       if ($("st-data")) $("st-data").textContent = dataNote() || "--";
+      if ($("st-bk") && (snap.s.ohRestore || snap.s.ohBackupMsg)) $("st-bk").textContent = snap.s.ohRestore || snap.s.ohBackupMsg;
     } else if (current === "logger" && snap.logging) {
       var sec = Math.floor((Date.now() - (recStart || Date.now())) / 1000);
       $("rec-time").textContent = pad2(Math.floor(sec / 60)) + ":" + pad2(sec % 60);

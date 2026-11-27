@@ -56,6 +56,55 @@ class OpenHaldexSource(private val ctx: Context, setting: String) {
         lastSettings = 0L // read it back
     }
 
+    /** Backs up the controller's settings now, as they are, with a copy in Downloads. */
+    fun backupNow() = commands.offer {
+        val o = get("/api/settings")?.let { JSONObject(it) }
+        DataHub.status["ohBackupMsg"] = if (o == null) "Not connected to OpenHaldex" else try {
+            val f = OhBackups.save(o, readWifi())
+            "Backed up. Copy in " + OhBackups.toDownloads(f)
+        } catch (e: Exception) { "Backed up here; no copy in Downloads (${e.message})" }
+    }
+
+    /** The settings the controller has now are right: keep them as the backup. */
+    fun keepConfig() = commands.offer {
+        OhBackups.keepNext()
+        lastSettings = 0L
+    }
+
+    /**
+     * Puts a backup back, the same way as the OpenHaldex page's Import. Wi-Fi goes last, and
+     * only where it differs, since it restarts the controller's Wi-Fi (and this connection).
+     */
+    fun restore(name: String, apPw: String, staPw: String) = commands.offer {
+        fun say(m: String) { DataHub.status["ohRestore"] = m }
+        say("Restoring…")
+        val b = OhBackups.load(name) ?: return@offer say("Couldn't read that backup")
+        for ((path, body) in OhConfig.restoreSteps(b)) {
+            val r = post(path, body) ?: return@offer say("Stopped part-way: OpenHaldex didn't answer. Restore again once it's connected")
+            if (path == "/api/tune" && !(try { JSONObject(r).optBoolean("ok") } catch (_: Exception) { false }))
+                return@offer say("Stopped: OpenHaldex refused the tune table")
+        }
+        val wifi = readWifi()
+        val steps = OhConfig.wifiSteps(b, wifi?.apSsid, wifi?.staSsid, apPw, staPw)
+        var wifiFailed = 0
+        for ((path, body) in steps) if (post(path, body) == null) wifiFailed++
+        ConnLog.add("OpenHaldex config restored from $name")
+        say(when {
+            wifiFailed > 0 -> "Settings restored. Wi-Fi didn't all take: set it on the OpenHaldex page"
+            steps.isNotEmpty() -> "Restored. OpenHaldex is restarting its Wi-Fi: reconnecting…"
+            else -> "Restored ✓"
+        })
+        lastSettings = 0L // read it back: the warning clears once it matches
+    }
+
+    private fun readWifi(): OhBackups.Wifi? {
+        val ap = get("/api/wifi/ssid")?.let { JSONObject(it) } ?: return null
+        val pw = get("/api/wifi")?.let { JSONObject(it) }
+        val sta = get("/api/wifi/sta")?.let { JSONObject(it) }
+        return OhBackups.Wifi(ap.optString("ssid").ifEmpty { null }, pw?.optBoolean("passwordSet") == true,
+            sta?.optString("ssid")?.ifEmpty { null }, sta?.optBoolean("passwordSet") == true)
+    }
+
     fun readDtcs() = commands.offer { dtcJob(false) }
 
     fun clearDtcs() = commands.offer { dtcJob(true) }
@@ -90,7 +139,11 @@ class OpenHaldexSource(private val ctx: Context, setting: String) {
                 // Flags that make OpenHaldex ignore mode requests, on connect and every 30 s.
                 if (System.currentTimeMillis() - lastSettings > 30_000L) {
                     lastSettings = System.currentTimeMillis()
-                    get("/api/settings")?.let { readSettings(JSONObject(it)) }
+                    get("/api/settings")?.let {
+                        val o = JSONObject(it)
+                        readSettings(o)
+                        OhBackups.check(o) { readWifi() }
+                    }
                 }
                 // Haldex fault codes on connect and every 5 minutes.
                 if (System.currentTimeMillis() - lastDtc > 5 * 60_000L) {
