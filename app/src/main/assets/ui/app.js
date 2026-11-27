@@ -522,7 +522,7 @@
     $("m-ok").textContent = okLabel || "OK"; $("m-ok").style.display = onOk ? "block" : "none";
     modalOk = onOk; $("modal").className = "modal on";
   }
-  function closeModal() { $("modal").className = "modal"; modalOk = null; keyTester = false; }
+  function closeModal() { $("modal").className = "modal"; modalOk = null; if (keyTester && B.keyProbe) B.keyProbe(false); keyTester = false; }
   $("m-cancel").onclick = closeModal;
   $("m-ok").onclick = function () { var f = modalOk; closeModal(); if (f) f(); };
 
@@ -1221,14 +1221,21 @@
   }
   /** Every key Android gets, with the device it came from, for the key tester. */
   window.onNativeKey = function (code, name, device) { nativeKeys = true; logKey(name + " " + code, device); };
+  // Buttons that don't arrive as key events: the media session, head-unit broadcasts, the system log.
+  window.onProbe = function (what, from) { logKey(what, from); };
+  var probeOn = "";
+  window.keyProbeResume = function () { if (keyTester && B.keyProbe) { probeOn = B.keyProbe(true); renderKeyTester(); } };
   function renderKeyTester() {
-    $("m-list").innerHTML = keyLog.length ? keyLog.map(function (l) { return '<div class="row" style="font-size:17px">' + esc(l) + "</div>"; }).join("")
-      : '<div class="row dim">Press a button…</div>';
+    $("m-list").innerHTML = (probeOn ? '<div class="row dim" style="font-size:15px">Listening for: ' + esc(probeOn) + "</div>" : "") +
+      (keyLog.length ? keyLog.map(function (l) { return '<div class="row" style="font-size:17px">' + esc(l) + "</div>"; }).join("")
+      : '<div class="row dim">Press a button…</div>');
     $("m-list").style.display = "block";
   }
   function openKeyTester() {
     keyLog = []; keyTester = true;
-    openModal("Key tester", "Press each MMI, steering-wheel and remote button once. Newest first. Back or Cancel closes.", "", null, null);
+    probeOn = typeof B.keyProbe === "function" ? B.keyProbe(true) : "";
+    openModal("Key tester", "Press each MMI, steering-wheel and remote button once. Newest first; also saved to logs/keys.log. While this is open, S1 Dash takes the media buttons (music keeps playing). Back or Cancel closes." +
+      (probeOn.indexOf("system log: off") >= 0 ? " To see the head unit’s own key messages too, run once from a computer: adb shell pm grant com.louij2.s1dash android.permission.READ_LOGS" : ""), "", null, null);
     renderKeyTester();
   }
   document.addEventListener("keydown", function (e) {
