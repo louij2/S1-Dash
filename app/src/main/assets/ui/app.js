@@ -54,7 +54,8 @@
         return JSON.stringify(l);
       },
       openApp: function () { return true; },
-      permState: function () { var o = { overlay: /[?&]overlay/.test(location.search), notif: true, battery: /[?&]battery/.test(location.search) }; return JSON.stringify(o); },
+      // The demo is a fully set-up device; ?perms pretends two permissions are missing, to try the prompt.
+      permState: function () { var miss = /[?&]perms/.test(location.search); return JSON.stringify({ overlay: !miss, notif: true, battery: !miss }); },
       askPerm: function () {}, overlayAllowed: function () { return /[?&]overlay/.test(location.search); }, askOverlay: function () {},
       connLog: function () { return "21 Nov 10:00:01  sources started\n21 Nov 10:00:02  OpenHaldex: connected\n21 Nov 10:00:03  ECU: connected (SimosTools dongle)\n21 Nov 10:04:12  ECU: BLE link dropped (status 8: link timeout, the radio lost the dongle), asking again"; },
       calState: function () {
@@ -272,7 +273,8 @@
       var isAbs = src === "kPa"; // kPa values are absolute pressures (MAP and friends); keep their sense
       if (p === "psi") return [bar === undefined ? bar : bar * 14.5038, "psi", src === "kPa" ? 1 : Math.max(dec - 1, 0)];
       if (p === "kPa") return [bar === undefined ? bar : bar * 100, "kPa", src === "kPa" ? dec : Math.max(dec - 2, 0)];
-      return [bar, "bar", src === "kPa" ? 2 : dec];
+      // Default "bar" keeps the kPa readings (MAP, ambient, pre-throttle) in kPa, as before units existed.
+      return src === "kPa" ? [x, "kPa", dec] : [bar, "bar", dec];
     }
     if (src === "°C") return unitOf("temp") === "F" ? [x === undefined ? x : x * 9 / 5 + 32, "°F", dec] : [x, "°C", dec];
     if (src === "km/h") return unitOf("speed") === "mph" ? [x === undefined ? x : x * 0.621371, "mph", dec] : [x, "km/h", dec];
