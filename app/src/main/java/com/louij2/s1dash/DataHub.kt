@@ -32,7 +32,8 @@ object DataHub {
 
     lateinit var prefs: SharedPreferences
         private set
-    private lateinit var appContext: Context
+    lateinit var appContext: Context
+        private set
 
     private var openHaldex: OpenHaldexSource? = null
     private var ecu: EcuPoller? = null
@@ -69,6 +70,7 @@ object DataHub {
         "cen2" to "atm",
         "cen3" to "hxVolts",
         "cen4" to "clutchLoad",
+        "backupServer" to "",         // where OpenHaldex config backups go too, e.g. an s1-logs server; blank = this device only
         "demo" to "0",
         "uiScale" to "100",           // percent of the largest size that fits the screen
     )

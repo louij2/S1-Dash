@@ -9,6 +9,7 @@ as OEM+.
 - **Engine data**: the same live set SimosTools logs: MAP and target, ambient, IAT, knock per cylinder,
   timing, wastegate, AFR / lambda, trims, fuel pressures, turbo speed and more.
 - **Haldex**: switch OpenHaldex modes from the screen; clutch / module temps, voltage, temperature protection.
+- **OpenHaldex backups**: the controller's settings are backed up whenever they change (the last 30 on the head unit, and a copy on a backup server if you set one). If they change a lot at once, as after a factory reset, S1 Dash warns and restores a backup in one tap. Backups are the same file as OpenHaldex's own Export Config; the BLE pairing code and Wi-Fi passwords are never in them.
 - **Fault codes**: an amber engine-light indicator (can be turned off), read and clear engine and Haldex codes.
 - **Clutch estimate** (manual gearbox): slip % and a clutch load bar, worked out from rpm, speed, gear and
   torque because the car has no clutch temperature sensor. Warns when the clutch slips under load.
